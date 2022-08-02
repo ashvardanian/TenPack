@@ -20,7 +20,6 @@ extern "C" {
 #include <stdint.h>
 
 enum tenpack_format_t {
-    tenpack_format_unknown_k,
 
     // Images:
     tenpack_bmp_k,
@@ -41,18 +40,53 @@ enum tenpack_format_t {
     tenpack_mpeg4_k,
 };
 
-bool tenpack_guess_format(void*, size_t, tenpack_format_t*);
+/**
+ * @brief Guesses the format of binary data just by comparing various binary signatures.
+ *
+ * @param[in] data      Pointer to the start of binary media data.
+ * @param[in] len       Length of the binary blob.
+ * @param[inout] format Pointer, where the guess will be written.
+ * @return true         If the type was successfully guessed.
+ * @return false        If error occurred.
+ */
+bool tenpack_guess_format( //
+    void* data,
+    size_t len,
+    tenpack_format_t* format);
 
+/**
+ * @brief Guesses the format of binary data just by comparing various binary signatures.
+ *
+ * @param[in] data      Pointer to the start of binary media data.
+ * @param[in] len       Length of the binary blob.
+ * @param[in] format    The format of data in `[data, data+len)`.
+ * @param[inout]dims    Output dimensions of image.
+ *                      > For JPEG and PNG, 3 dims: width, height, channels.
+ *                      > For GIF, 3 dims: width, height, frames.
+ *                      > For AVI, 4 dims: width, height, channels, frames.
+ * @return true         If the type was successfully guessed.
+ * @return false        If error occurred.
+ */
 bool tenpack_guess_dimensions( //
-    void*,
-    size_t,
-    tenpack_format_t,
-    size_t*);
+    void* data,
+    size_t len,
+    tenpack_format_t format,
+    size_t* dims);
 
+/**
+ * @brief Guesses the format of binary data just by comparing various binary signatures.
+ *
+ * @param[in] data      Pointer to the start of binary media data.
+ * @param[in] len       Length of the binary blob.
+ * @param[in] format    The format of data in `[data, data+len)`.
+ *
+ * @return true         If the type was successfully guessed.
+ * @return false        If error occurred.
+ */
 bool tenpack_unpack( //
-    void*,
-    size_t,
-    tenpack_format_t,
+    void* data,
+    size_t len,
+    tenpack_format_t format,
     size_t* slice,
     void* output_begin,
     size_t output_stride);
