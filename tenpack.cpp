@@ -2,6 +2,7 @@
 #include <cinttypes>
 
 #include <turbojpeg.h>
+#include <spng.h>
 
 #include "tenpack.h"
 
@@ -78,6 +79,21 @@ bool tenpack_guess_dimensions( //
         return success;
     }
 
+    case tenpack_format_t::tenpack_png_k: {
+        spng_ihdr ihdr;
+        size_t out_size;
+        spng_ctx* ctx = spng_ctx_new(0);
+        spng_set_png_buffer(ctx, content_bytes, content_length);
+        bool success = spng_get_ihdr(ctx, &ihdr) == 0;
+        spng_ctx_free(ctx);
+
+        guessed_dimensions[0] = static_cast<size_t>(ihdr.width);
+        guessed_dimensions[1] = static_cast<size_t>(ihdr.height);
+        guessed_dimensions[2] = 4;
+
+        return success;
+    }
+
     default: return false;
     }
 }
@@ -107,6 +123,22 @@ bool tenpack_upack( //
                                      0,
                                      TJPF_RGBA,
                                      0);
+        return success;
+    }
+    case tenpack_format_t::tenpack_png_k: {
+
+        bool success;
+
+        // Pixel formats:
+        // https://libspng.org/docs/context/#spng_format
+        //  Flags:
+        //  https://libspng.org/docs/decode/#spng_decode_flags
+        spng_ctx* ctx = spng_ctx_new(0);
+        spng_set_png_buffer(ctx, content_bytes, content_length);
+        spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &output_stride);
+        spng_decode_image(ctx, output_begin, output_stride, SPNG_FMT_RGBA8, 0);
+        spng_ctx_free(ctx);
+
         return success;
     }
 
