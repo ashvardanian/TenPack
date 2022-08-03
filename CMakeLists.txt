@@ -23,12 +23,14 @@ set(FETCHCONTENT_QUIET OFF)
 
 include("cmake/libturbojpeg.cmake")
 include("cmake/libspng.cmake")
+find_package(ZLIB REQUIRED)
+
 
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB)
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB)
 
 add_dependencies(tenpack ep-libspng ep-libturbojpeg)
 add_dependencies(tenpack_test ep-libspng ep-libturbojpeg)
