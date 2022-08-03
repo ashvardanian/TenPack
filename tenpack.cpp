@@ -28,8 +28,8 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
 }
 
 bool tenpack_guess_format( //
-    void* data,
-    size_t len,
+    void const* const data,
+    size_t const len,
     tenpack_format_t* format) {
 
     auto content = reinterpret_cast<unsigned char const*>(data);
@@ -50,9 +50,9 @@ bool tenpack_guess_format( //
 }
 
 bool tenpack_guess_dimensions( //
-    void* data,
-    size_t len,
-    tenpack_format_t format,
+    void const* const data,
+    size_t const len,
+    tenpack_format_t const format,
     size_t* guessed_dimensions) {
 
     // There is some documentation in libjpeg.txt. libjpeg is a very low-level, steep-learning-curve,
@@ -64,7 +64,7 @@ bool tenpack_guess_dimensions( //
 
     switch (format) {
     case tenpack_format_t::tenpack_jpeg_k: {
-        int jpeg_width, jpeg_height, jpeg_sub_sample, jpeg_color_space;
+        int jpeg_width = 0, jpeg_height = 0, jpeg_sub_sample = 0, jpeg_color_space = 0;
         tjhandle handle = tjInitDecompress();
         bool success = tjDecompressHeader3(handle,
                                            reinterpret_cast<unsigned char const*>(data),
@@ -85,7 +85,7 @@ bool tenpack_guess_dimensions( //
         spng_ihdr ihdr;
         size_t out_size;
         spng_ctx* ctx = spng_ctx_new(0);
-        spng_set_png_buffer(ctx, content_bytes, content_length);
+        spng_set_png_buffer(ctx, data, len);
         bool success = spng_get_ihdr(ctx, &ihdr) == 0;
         spng_ctx_free(ctx);
 
@@ -100,10 +100,10 @@ bool tenpack_guess_dimensions( //
     }
 }
 
-bool tenpack_upack( //
-    void* data,
-    size_t len,
-    tenpack_format_t format,
+bool tenpack_unpack( //
+    void const* const data,
+    size_t const len,
+    tenpack_format_t const format,
     size_t* slice,
     void* output_begin,
     size_t output_stride) {
@@ -133,10 +133,10 @@ bool tenpack_upack( //
 
         // Pixel formats:
         // https://libspng.org/docs/context/#spng_format
-        //  Flags:
-        //  https://libspng.org/docs/decode/#spng_decode_flags
+        // Flags:
+        // https://libspng.org/docs/decode/#spng_decode_flags
         spng_ctx* ctx = spng_ctx_new(0);
-        spng_set_png_buffer(ctx, content_bytes, content_length);
+        spng_set_png_buffer(ctx, data, len);
         spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &output_stride);
         spng_decode_image(ctx, output_begin, output_stride, SPNG_FMT_RGBA8, 0);
         spng_ctx_free(ctx);

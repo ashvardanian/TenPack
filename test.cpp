@@ -6,37 +6,35 @@
 
 int main() {
 
-    std::vector<std::string> paths {"/home/arman/vsCode/Ten-Pack/TenPack/assets/jpg_file.jpg",
-                                    "/home/arman/vsCode/Ten-Pack/TenPack/assets/png_file.png",
-                                    "/home/arman/vsCode/Ten-Pack/TenPack/assets/gif_file.gif",
-                                    "/home/arman/vsCode/Ten-Pack/TenPack/assets/bmp_file.bmp",
-                                    "/home/arman/vsCode/Ten-Pack/TenPack/assets/avi_file.avi",
-                                    "/home/arman/vsCode/Ten-Pack/TenPack/assets/mpeg_file.mp4"};
+    std::vector<std::string> paths {
+        "assets/jpg_file.jpg",
+        "assets/png_file.png",
+        "assets/gif_file.gif",
+        "assets/bmp_file.bmp",
+        "assets/avi_file.avi",
+        "assets/mpeg_file.mp4",
+    };
 
-    tenpack_format_t frmt;
-    std::fstream file;
-    std::string buffer;
-    std::string line;
-    size_t* dimensios = new size_t(3);
-    // size_t position = 0;
+    for (auto const& path : paths) {
 
-    for (int idx = 0; idx < paths.size(); ++idx) {
-        file.open(paths[idx], std::fstream::in | std::fstream::binary);
+        // Read entire file
+        std::ifstream file(path, std::ifstream::binary);
+        std::vector<char> input((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        file.close();
 
-        if (file.is_open()) {
-            while (!file.eof()) {
-                getline(file, line);
-                buffer.append(line.begin(), line.end());
-            }
-            auto file_content = (unsigned char*)buffer.data();
-            auto size = buffer.size();
-            void* buff;
-            tenpack_guess_format(file_content, size, &frmt);
-            tenpack_guess_dimensions(file_content, size, frmt, dimensios);
-            // tenpack_unpack(file_content,size,frmt,nullptr,buff,dimensios[0]);
-            std::cout << frmt << std::endl;
-            file.close();
-            buffer.clear();
-        }
+        // 1
+        tenpack_format_t format;
+        if (!tenpack_guess_format(input.data(), input.size(), &format))
+            throw std::invalid_argument("Can't guess file format:" + path);
+
+        // 2
+        size_t dimensions[4] = {1, 1, 1, 1};
+        if (!tenpack_guess_dimensions(input.data(), input.size(), format, dimensions))
+            throw std::invalid_argument("Can't guess dimensions:" + path);
+
+        // 3
+        std::vector<char> unpacked(dimensions[0] * dimensions[1] * dimensions[2] * dimensions[3]);
+        if (!tenpack_unpack(input.data(), input.size(), format, nullptr, unpacked.data(), dimensions[0]))
+            throw std::invalid_argument("Can't export:" + path);
     }
 }
