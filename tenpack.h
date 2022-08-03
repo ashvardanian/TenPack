@@ -50,8 +50,8 @@ enum tenpack_format_t {
  * @return false        If error occurred.
  */
 bool tenpack_guess_format( //
-    void* data,
-    size_t len,
+    void const* const data,
+    size_t const len,
     tenpack_format_t* format);
 
 /**
@@ -68,9 +68,9 @@ bool tenpack_guess_format( //
  * @return false        If error occurred.
  */
 bool tenpack_guess_dimensions( //
-    void* data,
-    size_t len,
-    tenpack_format_t format,
+    void const* const data,
+    size_t const len,
+    tenpack_format_t const format,
     size_t* dims);
 
 /**
@@ -84,9 +84,9 @@ bool tenpack_guess_dimensions( //
  * @return false        If error occurred.
  */
 bool tenpack_unpack( //
-    void*,
-    size_t,
-    tenpack_format_t,
+    void const* const data,
+    size_t const len,
+    tenpack_format_t const format,
     size_t*,
     void*,
     size_t);
