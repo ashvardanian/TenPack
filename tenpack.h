@@ -53,9 +53,9 @@ bool tenpack_unpack( //
     void*,
     size_t,
     tenpack_format_t,
-    size_t* slice,
-    void* output_begin,
-    size_t output_stride);
+    size_t*,
+    void*,
+    size_t);
 
 #ifdef __cplusplus
 } /* end extern "C" */
