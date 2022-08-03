@@ -25,7 +25,6 @@ include("cmake/libturbojpeg.cmake")
 include("cmake/libspng.cmake")
 find_package(ZLIB REQUIRED)
 
-
 add_library(tenpack tenpack.cpp)
 target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB)
 

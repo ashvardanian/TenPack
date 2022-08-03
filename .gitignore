@@ -4,3 +4,4 @@ _deps/
 Makefile
 cmake_install.cmake
 CMakeFiles/
+*.d
