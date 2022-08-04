@@ -26,7 +26,6 @@ include("cmake/libspng.cmake")
 include("cmake/libaudio.cmake")
 find_package(ZLIB REQUIRED)
 
-
 add_library(tenpack tenpack.cpp)
 target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio)
 
