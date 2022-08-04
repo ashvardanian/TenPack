@@ -22,19 +22,24 @@ int main() {
         std::vector<char> input((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
 
+        // We are going to need temporary memory
+        tenpack_ctx_t ctx;
+
         // 1
         tenpack_format_t format;
-        if (!tenpack_guess_format(input.data(), input.size(), &format))
+        if (!tenpack_guess_format(input.data(), input.size(), &format, &ctx))
             throw std::invalid_argument("Can't guess file format:" + path);
 
         // 2
-        size_t dimensions[4] = {1, 1, 1, 1};
-        if (!tenpack_guess_dimensions(input.data(), input.size(), format, dimensions))
+        tenpack_dimensions_t dims;
+        if (!tenpack_guess_dimensions(input.data(), input.size(), format, &dims, &ctx))
             throw std::invalid_argument("Can't guess dimensions:" + path);
 
         // 3
-        std::vector<char> unpacked(dimensions[0] * dimensions[1] * dimensions[2] * dimensions[3]);
-        if (!tenpack_unpack(input.data(), input.size(), format, nullptr, unpacked.data(), dimensions[0]))
+        std::vector<char> unpacked(dims.width * dims.height * dims.frames * dims.channels * dims.bytes_per_channel);
+        if (!tenpack_unpack(input.data(), input.size(), format, nullptr, &dims, unpacked.data(), &ctx))
             throw std::invalid_argument("Can't export:" + path);
+
+        tenpack_context_free(ctx);
     }
 }

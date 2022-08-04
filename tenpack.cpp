@@ -27,10 +27,31 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
     return matches;
 }
 
+class ctx_t {
+    tjhandle jpeg_ = nullptr;
+    spng_ctx* png_ = nullptr;
+
+  public:
+    ~ctx_t() {
+        if (jpeg_)
+            tjDestroy(jpeg_);
+        if (png_)
+            spng_ctx_free(png_);
+    }
+
+    spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
+    tjhandle jpeg() { return jpeg_ = jpeg_ ?: tjInitDecompress(); }
+};
+
+size_t size_bytes(tenpack_dimensions_t const& dims) {
+    return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
+}
+
 bool tenpack_guess_format( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
-    tenpack_format_t* format) {
+    tenpack_format_t* format,
+    tenpack_ctx_t* context) {
 
     auto content = reinterpret_cast<unsigned char const*>(data);
 
@@ -50,49 +71,64 @@ bool tenpack_guess_format( //
 }
 
 bool tenpack_guess_dimensions( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    size_t* guessed_dimensions) {
+    tenpack_dimensions_t* dimensions,
+    tenpack_ctx_t* context) {
 
-    // There is some documentation in libjpeg.txt. libjpeg is a very low-level, steep-learning-curve,
-    // old school c library. To use it effectively you need to be familiar with setjmp and longjmp,
-    // c structure layouts, function pointers, and lots of other low-level C stuff. It's a bear to
-    // work with but possible to do a great deal with minimal resource usage.
-
-    // Docs: https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html
+    tenpack_dimensions_t& dims = *dimensions;
+    ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
+    if (!ctx_ptr)
+        ctx_ptr = new ctx_t();
+    if (!ctx_ptr)
+        return false;
 
     switch (format) {
     case tenpack_format_t::tenpack_jpeg_k: {
+        // There is some documentation in libjpeg.txt. libjpeg is a very low-level, steep-learning-curve,
+        // old school c library. To use it effectively you need to be familiar with setjmp and longjmp,
+        // c structure layouts, function pointers, and lots of other low-level C stuff. It's a bear to
+        // work with but possible to do a great deal with minimal resource usage.
+        // Docs: https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html
         int jpeg_width = 0, jpeg_height = 0, jpeg_sub_sample = 0, jpeg_color_space = 0;
-        tjhandle handle = tjInitDecompress();
-        bool success = tjDecompressHeader3(handle,
-                                           reinterpret_cast<unsigned char const*>(data),
-                                           static_cast<unsigned long>(len),
-                                           &jpeg_width,
-                                           &jpeg_height,
-                                           &jpeg_sub_sample,
-                                           &jpeg_color_space) == 0;
+        bool success = tjDecompressHeader3( //
+                           ctx_ptr->jpeg(),
+                           reinterpret_cast<unsigned char const*>(data),
+                           static_cast<unsigned long>(len),
+                           &jpeg_width,
+                           &jpeg_height,
+                           &jpeg_sub_sample,
+                           &jpeg_color_space) == 0;
+        TJCS color_space = static_cast<TJCS>(jpeg_color_space);
+        switch (color_space) {
+        case TJCS_GRAY: dims.channels = 1; break;
+        case TJCS_YCbCr: dims.channels = 3; break;
+        case TJCS_RGB: dims.channels = 3; break;
+        default: dims.channels = 4; break;
+        // Unsupported:
+        case TJCS_CMYK: dims.channels = 0; break;
+        case TJCS_YCCK: dims.channels = 0; break;
+        }
 
-        guessed_dimensions[0] = static_cast<size_t>(jpeg_width);
-        guessed_dimensions[1] = static_cast<size_t>(jpeg_height);
-        guessed_dimensions[2] = 4;
-
+        dims.width = static_cast<size_t>(jpeg_width);
+        dims.height = static_cast<size_t>(jpeg_height);
+        dims.bytes_per_channel = 1;
+        dims.frames = 1;
         return success;
     }
 
     case tenpack_format_t::tenpack_png_k: {
+        // Image header: https://libspng.org/docs/chunk/#spng_get_ihdr
         spng_ihdr ihdr;
-        size_t out_size;
-        spng_ctx* ctx = spng_ctx_new(0);
-        spng_set_png_buffer(ctx, data, len);
-        bool success = spng_get_ihdr(ctx, &ihdr) == 0;
-        spng_ctx_free(ctx);
+        spng_set_png_buffer(ctx_ptr->png(), data, len);
+        bool success = spng_get_ihdr(ctx_ptr->png(), &ihdr) == 0;
 
-        guessed_dimensions[0] = static_cast<size_t>(ihdr.width);
-        guessed_dimensions[1] = static_cast<size_t>(ihdr.height);
-        guessed_dimensions[2] = 4;
-
+        dims.width = static_cast<size_t>(ihdr.width);
+        dims.height = static_cast<size_t>(ihdr.height);
+        dims.bytes_per_channel = 1;
+        dims.frames = 1;
+        dims.channels = 3;
         return success;
     }
 
@@ -101,49 +137,81 @@ bool tenpack_guess_dimensions( //
 }
 
 bool tenpack_unpack( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    size_t* slice,
-    void* output_begin,
-    size_t output_stride) {
+    tenpack_dimensions_t const* output_dimensions,
+    void* output,
+    tenpack_ctx_t* context) {
+
+    tenpack_dimensions_t const& dims = *output_dimensions;
+    ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
+    if (!ctx_ptr)
+        ctx_ptr = new ctx_t();
+    if (!ctx_ptr)
+        return false;
 
     switch (format) {
     case tenpack_format_t::tenpack_jpeg_k: {
 
+        // Decoding API:
+        // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gae9eccef8b682a48f43a9117c231ed013
         // Pixel formats:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gac916144e26c3817ac514e64ae5d12e2a
         // Flags:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gacb233cfd722d66d1ccbf48a7de81f0e0
-        tjhandle handle = tjInitDecompress();
-        bool success = tjDecompress2(handle,
-                                     reinterpret_cast<unsigned char const*>(data),
-                                     static_cast<unsigned long>(len),
-                                     reinterpret_cast<unsigned char*>(output_begin),
-                                     0,
-                                     output_stride,
-                                     0,
-                                     TJPF_RGBA,
-                                     0);
+        TJPF pixel_format;
+        if (dims.bytes_per_channel == 1 && dims.channels == 4)
+            pixel_format = TJPF_RGBA;
+        if (dims.bytes_per_channel == 1 && dims.channels == 3)
+            pixel_format = TJPF_RGB;
+        if (dims.bytes_per_channel == 1 && dims.channels == 1)
+            pixel_format = TJPF_GRAY;
+        bool success = tjDecompress2( //
+            ctx_ptr->jpeg(),
+            reinterpret_cast<unsigned char const*>(data),
+            static_cast<unsigned long>(len),
+            reinterpret_cast<unsigned char*>(output),
+            output_dimensions->width,  // width
+            0,                         // pitch
+            output_dimensions->height, // height
+            pixel_format,
+            0);
         return success;
     }
     case tenpack_format_t::tenpack_png_k: {
+        // Decoding API: https://libspng.org/docs/decode/#spng_decode_image
+        // Pixel formats: https://libspng.org/docs/context/#spng_format
+        // Flags: https://libspng.org/docs/decode/#spng_decode_flags
+        // TODO: What "This function can only be called once per context" means?!
+        spng_ihdr ihdr;
+        spng_set_png_buffer(ctx_ptr->png(), data, len);
+        spng_get_ihdr(ctx_ptr->png(), &ihdr);
+        spng_format format;
+        if (dims.bytes_per_channel == 2 && dims.channels == 4)
+            format = SPNG_FMT_RGBA16;
+        else if (dims.bytes_per_channel == 1 && dims.channels == 4)
+            format = SPNG_FMT_RGBA8;
+        else if (dims.bytes_per_channel == 1 && dims.channels == 3)
+            format = SPNG_FMT_RGB8;
+        else if (dims.bytes_per_channel == 2 && dims.channels == 2)
+            format = SPNG_FMT_GA16;
+        else if (dims.bytes_per_channel == 1 && dims.channels == 2)
+            format = SPNG_FMT_GA8;
+        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
+            format = SPNG_FMT_G8;
+        else
+            return false;
 
-        bool success;
-
-        // Pixel formats:
-        // https://libspng.org/docs/context/#spng_format
-        // Flags:
-        // https://libspng.org/docs/decode/#spng_decode_flags
-        spng_ctx* ctx = spng_ctx_new(0);
-        spng_set_png_buffer(ctx, data, len);
-        spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &output_stride);
-        spng_decode_image(ctx, output_begin, output_stride, SPNG_FMT_RGBA8, 0);
-        spng_ctx_free(ctx);
-
+        bool success = spng_decode_image(ctx_ptr->png(), output, size_bytes(dims), format, 0) == 0;
         return success;
     }
 
     default: return false;
     }
+}
+
+bool tenpack_context_free(tenpack_ctx_t ctx) {
+    if (ctx)
+        delete reinterpret_cast<ctx_t*>(ctx);
 }
