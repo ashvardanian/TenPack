@@ -108,8 +108,8 @@ bool tenpack_guess_dimensions( //
         case TJCS_RGB: dims.channels = 3; break;
         default: dims.channels = 4; break;
         // Unsupported:
-        case TJCS_CMYK: dims.channels = 0; break;
-        case TJCS_YCCK: dims.channels = 0; break;
+        case TJCS_CMYK: dims.channels = 4; break;
+        case TJCS_YCCK: dims.channels = 4; break;
         }
 
         dims.width = static_cast<size_t>(jpeg_width);
@@ -162,12 +162,15 @@ bool tenpack_unpack( //
         // Flags:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gacb233cfd722d66d1ccbf48a7de81f0e0
         TJPF pixel_format;
-        if (dims.bytes_per_channel == 1 && dims.channels == 4)
-            pixel_format = TJPF_RGBA;
         if (dims.bytes_per_channel == 1 && dims.channels == 3)
             pixel_format = TJPF_RGB;
-        if (dims.bytes_per_channel == 1 && dims.channels == 1)
+        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
             pixel_format = TJPF_GRAY;
+        else if (dims.bytes_per_channel == 1 && dims.channels == 4)
+            pixel_format = TJPF_RGBA;
+        else
+            return false;
+
         bool success = tjDecompress2( //
             ctx_ptr->jpeg(),
             reinterpret_cast<unsigned char const*>(data),
@@ -190,9 +193,8 @@ bool tenpack_unpack( //
         spng_set_png_buffer(ctx_ptr->png(), data, len);
         spng_get_ihdr(ctx_ptr->png(), &ihdr);
         spng_format format;
-        if (dims.bytes_per_channel == 2 && dims.channels == 4)
-            format = SPNG_FMT_RGBA16;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 4)
+
+        if (dims.bytes_per_channel == 1 && dims.channels == 4)
             format = SPNG_FMT_RGBA8;
         else if (dims.bytes_per_channel == 1 && dims.channels == 3)
             format = SPNG_FMT_RGB8;
@@ -202,6 +204,8 @@ bool tenpack_unpack( //
             format = SPNG_FMT_GA8;
         else if (dims.bytes_per_channel == 1 && dims.channels == 1)
             format = SPNG_FMT_G8;
+        else if (dims.bytes_per_channel == 2 && dims.channels == 4)
+            format = SPNG_FMT_RGBA16;
         else
             return false;
 
