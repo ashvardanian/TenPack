@@ -85,6 +85,7 @@ bool tenpack_guess_dimensions( //
         return false;
 
     switch (format) {
+
     case tenpack_format_t::tenpack_jpeg_k: {
         // There is some documentation in libjpeg.txt. libjpeg is a very low-level, steep-learning-curve,
         // old school c library. To use it effectively you need to be familiar with setjmp and longjmp,
@@ -152,8 +153,8 @@ bool tenpack_unpack( //
         return false;
 
     switch (format) {
-    case tenpack_format_t::tenpack_jpeg_k: {
 
+    case tenpack_format_t::tenpack_jpeg_k: {
         // Decoding API:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gae9eccef8b682a48f43a9117c231ed013
         // Pixel formats:
@@ -179,6 +180,7 @@ bool tenpack_unpack( //
             0);
         return success;
     }
+
     case tenpack_format_t::tenpack_png_k: {
         // Decoding API: https://libspng.org/docs/decode/#spng_decode_image
         // Pixel formats: https://libspng.org/docs/context/#spng_format
@@ -212,6 +214,10 @@ bool tenpack_unpack( //
 }
 
 bool tenpack_context_free(tenpack_ctx_t ctx) {
-    if (ctx)
+    if (ctx) {
         delete reinterpret_cast<ctx_t*>(ctx);
+        return true;
+    }
+    else
+        return false;
 }

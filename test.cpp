@@ -37,7 +37,7 @@ int main() {
 
         // 3
         std::vector<char> unpacked(dims.width * dims.height * dims.frames * dims.channels * dims.bytes_per_channel);
-        if (!tenpack_unpack(input.data(), input.size(), format, nullptr, &dims, unpacked.data(), &ctx))
+        if (!tenpack_unpack(input.data(), input.size(), format, &dims, unpacked.data(), &ctx))
             throw std::invalid_argument("Can't export:" + path);
 
         tenpack_context_free(ctx);
