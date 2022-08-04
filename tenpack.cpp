@@ -3,6 +3,7 @@
 
 #include <turbojpeg.h>
 #include <spng.h>
+#include <libnyquist/Decoders.h>
 
 #include "tenpack.h"
 
@@ -107,7 +108,7 @@ bool tenpack_guess_dimensions( //
         case TJCS_YCbCr: dims.channels = 3; break;
         case TJCS_RGB: dims.channels = 3; break;
         default: dims.channels = 4; break;
-        // Unsupported:
+        // ? Unsupported:
         case TJCS_CMYK: dims.channels = 4; break;
         case TJCS_YCCK: dims.channels = 4; break;
         }
