@@ -1,6 +1,5 @@
 include(ExternalProject)
 
-find_package(ZLIB REQUIRED)
 ExternalProject_Add(
     ep-libspng
     URL https://github.com/randy408/libspng/archive/refs/tags/v0.7.2.tar.gz

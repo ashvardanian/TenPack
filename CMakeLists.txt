@@ -23,14 +23,15 @@ set(FETCHCONTENT_QUIET OFF)
 
 include("cmake/libturbojpeg.cmake")
 include("cmake/libspng.cmake")
+include("cmake/libaudio.cmake")
 find_package(ZLIB REQUIRED)
 
 
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio)
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio)
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio)
+add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio)
