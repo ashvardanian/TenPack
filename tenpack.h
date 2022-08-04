@@ -40,56 +40,75 @@ enum tenpack_format_t {
     tenpack_mpeg4_k,
 };
 
+struct tenpack_dimensions_t {
+    size_t frames;
+    size_t width;
+    size_t height;
+    size_t channels;
+    size_t bytes_per_channel;
+};
+
+typedef void const* tenpack_input_t;
+typedef void* tenpack_ctx_t;
+
+bool tenpack_context_free(tenpack_ctx_t);
+
 /**
  * @brief Guesses the format of binary data just by comparing various binary signatures.
  *
- * @param[in] data      Pointer to the start of binary media data.
- * @param[in] len       Length of the binary blob.
- * @param[inout] format Pointer, where the guess will be written.
- * @return true         If the type was successfully guessed.
- * @return false        If error occurred.
+ * @param[in] data       Pointer to the start of binary media data.
+ * @param[in] len        Length of the binary blob.
+ * @param[inout] format  Pointer, where the guess will be written.
+ * @param[inout] context Pointer, where the guess will be written.
+ *
+ * @return true          If the type was successfully guessed.
+ * @return false         If error occurred.
  */
 bool tenpack_guess_format( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
-    tenpack_format_t* format);
+    tenpack_format_t* format,
+    tenpack_ctx_t* context);
 
 /**
  * @brief Guesses the format of binary data just by comparing various binary signatures.
  *
- * @param[in] data      Pointer to the start of binary media data.
- * @param[in] len       Length of the binary blob.
- * @param[in] format    The format of data in `[data, data+len)`.
- * @param[inout]dims    Output dimensions of image.
- *                      > For JPEG and PNG, 3 dims: width, height, channels.
- *                      > For GIF, 3 dims: width, height, frames.
- *                      > For AVI, 4 dims: width, height, channels, frames.
- * @return true         If the type was successfully guessed.
- * @return false        If error occurred.
+ * @param[in] data       Pointer to the start of binary media data.
+ * @param[in] len        Length of the binary blob.
+ * @param[in] format     The format of data in `[data, data+len)`.
+ * @param[inout]dims     Output dimensions of image.
+ *                       > For JPEG and PNG, 3 dims: width, height, channels.
+ *                       > For GIF, 3 dims: width, height, frames.
+ *                       > For AVI, 4 dims: width, height, channels, frames.
+ * @return true          If the type was successfully guessed.
+ * @return false         If error occurred.
  */
 bool tenpack_guess_dimensions( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    size_t* dims);
+    tenpack_dimensions_t* dims,
+    tenpack_ctx_t* context);
 
 /**
  * @brief Guesses the format of binary data just by comparing various binary signatures.
  *
- * @param[in] data      Pointer to the start of binary media data.
- * @param[in] len       Length of the binary blob.
- * @param[in] format    The format of data in `[data, data+len)`.
+ * @param[in] data       Pointer to the start of binary media data.
+ * @param[in] len        Length of the binary blob.
+ * @param[in] format     The format of data in `[data, data+len)`.
  *
- * @return true         If the type was successfully guessed.
- * @return false        If error occurred.
+ * @return true          If the type was successfully guessed.
+ * @return false         If error occurred.
  */
 bool tenpack_unpack( //
-    void const* const data,
+    tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    size_t*,
-    void*,
-    size_t);
+    tenpack_dimensions_t const* output_dimensions,
+    void* output,
+    tenpack_ctx_t* context);
+
+bool tenpack_context_free(tenpack_ctx_t);
 
 #ifdef __cplusplus
 } /* end extern "C" */
