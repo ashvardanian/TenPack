@@ -3,6 +3,7 @@
 
 #include <turbojpeg.h>
 #include <spng.h>
+#include <decoder.h>
 
 #include "tenpack.h"
 
@@ -28,30 +29,30 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
 }
 
 bool tenpack_guess_format( //
-    void* data,
-    size_t len,
+    void* content_bytes,
+    size_t content_length,
     tenpack_format_t* format) {
 
-    auto content = reinterpret_cast<unsigned char const*>(data);
+    auto content = reinterpret_cast<unsigned char const*>(content_bytes);
 
     // clang-format off
-    if (*format = tenpack_jpeg_k; matches(prefix_jpeg_k, content, len)) return true;
-    if (*format = tenpack_png_k; matches(prefix_png_k, content, len)) return true;
-    if (*format = tenpack_gif_k; matches(prefix_gif_k, content, len)) return true;
-    if (*format = tenpack_bmp_k; matches(prefix_bmp_k, content, len)) return true;
-    if (*format = tenpack_jpeg2000_k; matches(prefix_jpeg2000_k, content, len)) return true;
-    if (*format = tenpack_jxr_k; matches(prefix_jxr_k, content, len)) return true;
-    if (*format = tenpack_psd_k; matches(prefix_psd_k, content, len)) return true;
-    if (*format = tenpack_ico_k; matches(prefix_ico_k, content, len)) return true;
-    if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, len)) return true;
+    if (*format = tenpack_jpeg_k; matches(prefix_jpeg_k, content, content_length)) return true;
+    if (*format = tenpack_png_k; matches(prefix_png_k, content, content_length)) return true;
+    if (*format = tenpack_gif_k; matches(prefix_gif_k, content, content_length)) return true;
+    if (*format = tenpack_bmp_k; matches(prefix_bmp_k, content, content_length)) return true;
+    if (*format = tenpack_jpeg2000_k; matches(prefix_jpeg2000_k, content, content_length)) return true;
+    if (*format = tenpack_jxr_k; matches(prefix_jxr_k, content, content_length)) return true;
+    if (*format = tenpack_psd_k; matches(prefix_psd_k, content, content_length)) return true;
+    if (*format = tenpack_ico_k; matches(prefix_ico_k, content, content_length)) return true;
+    if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, content_length)) return true;
     // clang-format on
 
     return false;
 }
 
 bool tenpack_guess_dimensions( //
-    void* data,
-    size_t len,
+    void* content_bytes,
+    size_t content_length,
     tenpack_format_t format,
     size_t* guessed_dimensions) {
 
@@ -67,8 +68,8 @@ bool tenpack_guess_dimensions( //
         int jpeg_width, jpeg_height, jpeg_sub_sample, jpeg_color_space;
         tjhandle handle = tjInitDecompress();
         bool success = tjDecompressHeader3(handle,
-                                           reinterpret_cast<unsigned char const*>(data),
-                                           static_cast<unsigned long>(len),
+                                           reinterpret_cast<unsigned char const*>(content_bytes),
+                                           static_cast<unsigned long>(content_length),
                                            &jpeg_width,
                                            &jpeg_height,
                                            &jpeg_sub_sample,
@@ -101,8 +102,8 @@ bool tenpack_guess_dimensions( //
 }
 
 bool tenpack_upack( //
-    void* data,
-    size_t len,
+    void* content_bytes,
+    size_t content_length,
     tenpack_format_t format,
     size_t* slice,
     void* output_begin,
@@ -117,8 +118,8 @@ bool tenpack_upack( //
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gacb233cfd722d66d1ccbf48a7de81f0e0
         tjhandle handle = tjInitDecompress();
         bool success = tjDecompress2(handle,
-                                     reinterpret_cast<unsigned char const*>(data),
-                                     static_cast<unsigned long>(len),
+                                     reinterpret_cast<unsigned char const*>(content_bytes),
+                                     static_cast<unsigned long>(content_length),
                                      reinterpret_cast<unsigned char*>(output_begin),
                                      0,
                                      output_stride,
