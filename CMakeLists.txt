@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.19)
 project(UKV)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
@@ -24,13 +24,14 @@ set(FETCHCONTENT_QUIET OFF)
 include("cmake/libturbojpeg.cmake")
 include("cmake/libspng.cmake")
 include("cmake/libaudio.cmake")
+include("cmake/libvips.cmake")
 find_package(ZLIB REQUIRED)
 
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips)
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips)
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio ep-libvips)
+add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio ep-libvips)
