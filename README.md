@@ -23,3 +23,11 @@ Libraries implementing the first step have been implemented for other languages:
 * [filetype.py](https://github.com/h2non/filetype.py) for Python
 * [FileType](https://github.com/rzane/file_type) for Elixir
 * [FileSignatures](https://github.com/neilharvey/FileSignatures) for C#
+
+## Alternatives for Tensor Exports
+
+* [Pillow](https://pillow.readthedocs.io/en/stable/) and [Pillow-SIMD](https://github.com/uploadcare/pillow-simd) for [image formats](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html).
+* [FFmpeg](https://ffmpeg.org/), for video formats.
+* [Nyquist](https://github.com/ddiakopoulos/libnyquist), for audio formats.
+
+In fact, TenPack is just a CMake-friendly generalization of those libraries with a C interface and focus on memory reusing.
