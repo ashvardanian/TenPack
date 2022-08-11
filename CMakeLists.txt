@@ -27,11 +27,15 @@ include("cmake/libaudio.cmake")
 include("cmake/libvips.cmake")
 find_package(ZLIB REQUIRED)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(glib2 REQUIRED IMPORTED_TARGET glib-2.0)
+
+include_directories(${glib2_INCLUDE_DIRS})
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips-cpp ${glib2_LIBRARIES})
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips-cpp ${glib2_LIBRARIES})
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio ep-libvips)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio ep-libvips)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio  ep-libvips)
+add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio  ep-libvips)
