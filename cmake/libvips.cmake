@@ -25,11 +25,16 @@ ExternalProject_Add(
 
 set(LIBVIPS_INCLUDE_DIRS  "${SOURCE_DIR}/cplusplus/include/;${SOURCE_DIR}/libvips/include/;${BINARY_DIR}/build/libvips/include/")
 
-set(LIBVIPS_LIB_DIR ${BINARY_DIR}/build/cplusplus/)
+set(LIBVIPS_LIB_DIRS ${BINARY_DIR}/build/cplusplus/ ${BINARY_DIR}/build/libvips/)
 
 include_directories(${LIBVIPS_INCLUDE_DIRS})
-link_directories(${LIBVIPS_LIB_DIR})
+link_directories(${LIBVIPS_LIB_DIRS})
 
 add_library(libvips-cpp SHARED IMPORTED)
 set_property(TARGET libvips-cpp PROPERTY
-        IMPORTED_LOCATION "${LIBVIPS_LIB_DIR}/libvips-cpp.so")
+        IMPORTED_LOCATION "${BINARY_DIR}/build/cplusplus/libvips-cpp.so")
+
+add_library(libvips SHARED IMPORTED)
+set_property(TARGET libvips PROPERTY
+    IMPORTED_LOCATION "${BINARY_DIR}/build/libvips/libvips.so")
+
