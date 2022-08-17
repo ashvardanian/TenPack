@@ -10,6 +10,8 @@ int main() {
         "assets/jpg_file.jpg",
         "assets/png_file.png",
         "assets/gif_file.gif",
+        "assets/wav_stereo_16.wav",
+        "assets/wav_mono_16.wav",
         "assets/bmp_file.bmp",
         "assets/avi_file.avi",
         "assets/mpeg_file.mp4",

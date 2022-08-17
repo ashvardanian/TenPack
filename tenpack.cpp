@@ -1,12 +1,16 @@
 #include <array>
+#include <memory>
+#include <cstring>
 #include <cinttypes>
 
 #include <turbojpeg.h>
 #include <spng.h>
 #include <libnyquist/Decoders.h>
-#include <vips/vips8>
+#include <vips/vips.h>
+
 #include "tenpack.h"
 
+// Image
 constexpr unsigned char prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
 constexpr unsigned char prefix_png_k[4] {0x89, 0x50, 0x4E, 0x47};
 constexpr unsigned char prefix_gif_k[3] {0x47, 0x49, 0x46};
@@ -16,6 +20,15 @@ constexpr unsigned char prefix_jxr_k[3] {0x49, 0x49, 0xBC};
 constexpr unsigned char prefix_psd_k[4] {0x38, 0x42, 0x50, 0x53};
 constexpr unsigned char prefix_ico_k[4] {0x00, 0x00, 0x01, 0x00};
 constexpr unsigned char prefix_dwg_k[4] {0x41, 0x43, 0x31, 0x30};
+
+// The Resource Interchange File Format (RIFF)
+// is a generic file container format for storing
+// data in tagged chunks.
+// About RIFF -> https://en.wikipedia.org/wiki/Resource_Interchange_File_Format
+constexpr unsigned char prefix_riff_k[4] {0x52, 0x49, 0x46, 0x46};
+
+// Audio
+constexpr unsigned char prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
 
 template <typename at, std::size_t length_ak>
 bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
@@ -31,6 +44,7 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
 class ctx_t {
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
+    nqr::WavDecoder* wav_ = nullptr;
 
   public:
     ~ctx_t() {
@@ -38,10 +52,13 @@ class ctx_t {
             tjDestroy(jpeg_);
         if (png_)
             spng_ctx_free(png_);
+        if (wav_)
+            wav_->~WavDecoder();
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
     tjhandle jpeg() { return jpeg_ = jpeg_ ?: tjInitDecompress(); }
+    nqr::WavDecoder& wav() { return *wav_; }
 };
 
 size_t size_bytes(tenpack_dimensions_t const& dims) {
@@ -66,6 +83,10 @@ bool tenpack_guess_format( //
     if (*format = tenpack_psd_k; matches(prefix_psd_k, content, len)) return true;
     if (*format = tenpack_ico_k; matches(prefix_ico_k, content, len)) return true;
     if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, len)) return true;
+    if (matches(prefix_riff_k, content, len))
+    {
+        if (*format = tenpack_wav_k; matches(prefix_wav_k, content + 8, len - 8)) return true;
+    }
     // clang-format on
 
     return false;
@@ -132,6 +153,43 @@ bool tenpack_guess_dimensions( //
         dims.frames = 1;
         dims.channels = 3;
         return success;
+    }
+
+    case tenpack_format_t::tenpack_gif_k: {
+        // GIF header: https://www.libvips.org/API/current/VipsForeignSave.html#vips-gifload-buffer
+
+        // You can set the number of frames with this command "exiftool -b -FrameCount filename.gif"
+
+        VipsImage* out = vips_image_new();
+        bool success = vips_gifload_buffer((void*)data, len, &out, "access", VIPS_ACCESS_SEQUENTIAL, NULL) == 0;
+        dims.width = size_t(out->Xsize);
+        dims.height = size_t(out->Ysize);
+        dims.bytes_per_channel = 1;
+        dims.frames = 1;
+        switch (out->Type) {
+        case VIPS_INTERPRETATION_GREY16: dims.channels = 1; break;
+        case VIPS_INTERPRETATION_CMYK: dims.channels = 4; break;
+        case VIPS_INTERPRETATION_sRGB: dims.channels = 4; break;
+        case VIPS_INTERPRETATION_RGB: dims.channels = 3; break;
+        default: dims.channels = 4; break;
+        }
+        return success;
+    }
+
+    case tenpack_format_t::tenpack_wav_k: {
+
+        nqr::AudioData file_data;
+        auto buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
+        std::vector<uint8_t> buffer(buff, buff + len);
+        ctx_ptr->wav().LoadFromBuffer(&file_data, buffer);
+
+        dims.bytes_per_channel = file_data.frameSize / file_data.channelCount;
+        dims.width = file_data.sampleRate * file_data.lengthSeconds;
+        dims.channels = file_data.channelCount;
+        dims.height = 1;
+        dims.frames = 1;
+
+        return file_data.lengthSeconds ? true : false;
     }
 
     default: return false;
@@ -212,6 +270,34 @@ bool tenpack_unpack( //
 
         bool success = spng_decode_image(ctx_ptr->png(), output, size_bytes(dims), format, 0) == 0;
         return success;
+    }
+
+    case tenpack_format_t::tenpack_gif_k: {
+        // Decoding API: https://www.libvips.org/API/current/VipsImage.html#vips-image-decode
+        // Pixel interpretation: https://www.libvips.org/API/current/VipsImage.html#VipsInterpretation
+        // Pixel formats: https://www.libvips.org/API/current/VipsImage.html#VipsBandFormat
+        // Flags: https://www.libvips.org/API/current/VipsForeignSave.html#VipsForeignFlags
+
+        VipsImage* in = vips_image_new();
+        VipsImage* out = vips_image_new();
+        bool success_parse = vips_gifload_buffer((void*)data, len, &in, 0) == 0;
+
+        bool success = vips_image_decode(in, &out) == 0;
+        output = out->data;
+        return success;
+    }
+
+    case tenpack_format_t::tenpack_wav_k: {
+
+        nqr::AudioData file_data;
+
+        auto buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
+        std::vector<uint8_t> buffer(buff, buff + len);
+
+        ctx_ptr->wav().LoadFromBuffer(&file_data, buffer);
+        output = file_data.samples.data();
+
+        return file_data.lengthSeconds ? true : false;
     }
 
     default: return false;
