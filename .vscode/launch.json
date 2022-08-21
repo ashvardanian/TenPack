@@ -4,23 +4,27 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
-            "name": "C++: Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/bin/tenpack_test",
-            "args": [
-                // "--gtest_break_on_failure",
-                // "--gtest_catch_exceptions=0"
-            ],
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "showDisplayString": true,
-            "stopAtEntry": false,
-            "externalConsole": false,
-            "preLaunchTask": "Build: Debug Test",
+      {
+        "name": "C/C++: Debug Test",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/bin/tenpack_test",
+        "cwd": "${workspaceFolder}",
+        "externalConsole": false,
+        "preLaunchTask": "Build: Debug Test",
+        "stopAtEntry": true,
+        "osx": {
+            "MIMode": "lldb"
+        },
+        "linux": {
             "MIMode": "gdb",
             "miDebuggerPath": "/usr/bin/gdb"
-        }
+        },
+        "args": [
+            // "--gtest_break_on_failure",
+            // "--gtest_catch_exceptions=0"
+        ],
+        "environment": [],
+      }
     ]
-}
+  }
