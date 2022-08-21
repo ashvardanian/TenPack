@@ -4,7 +4,6 @@
 #include <turbojpeg.h>
 #include <spng.h>
 #include <libnyquist/Decoders.h>
-#include <vips/vips8>
 #include "tenpack.h"
 
 constexpr unsigned char prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};

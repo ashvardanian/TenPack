@@ -14,7 +14,9 @@ ExternalProject_Add(
     INSTALL_DIR "_deps/libaudio-install"
     BINARY_DIR "_deps/libaudio-build"
 
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=clean
+    CMAKE_ARGS 
+    -DCMAKE_INSTALL_PREFIX=clean 
+    -DCMAKE_CXX_STANDARD=11
 )
 
 set(LIBAUDIO_INCLUDE_DIR _deps/libaudio-src/include)
