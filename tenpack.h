@@ -1,12 +1,25 @@
 /**
  * @file tenpack.h
- * @author your name (you@domain.com)
+ * @author Ashot Vardanian
  * @brief
  * @version 0.1
  * @date 2022-08-02
  *
- * @copyright Copyright (c) 2022
+ * @brief Micro-library exporting variable-length encoded data into regular Tensors,
+ * that Machine Learning libraries can accept. Can submit both singular media objects,
+ * and batches, as well as streams, decoding and reshaping frames along the way.
+ * TenPack has very little logic internally, and mostly just links codecs/libs together.
+ * Supports Apache Arrow inputs.
  *
+ * @section Supported Formats
+ * Images: JPEG, PNG, GIF?
+ * Audios: WAV?
+ * Videos: MPEG4?
+ *
+ * @section Supported Transforms
+ * Images: resize, transpose.
+ * Audios: resize, fft.
+ * Videos: resize, transpose.
  */
 #pragma once
 
@@ -41,14 +54,20 @@ enum tenpack_format_t {
 };
 
 struct tenpack_dimensions_t {
-    size_t frames;
+    // A spatial dimension.
     size_t width;
+    // A spatial dimension.
     size_t height;
+    // A spatial dimension.
     size_t channels;
-    size_t bytes_per_channel;
+    // A temporal dimension.
+    size_t frames;
+    // The resolution of every exported numerical value.
+    size_t bytes_per_scalar;
 };
 
 typedef void const* tenpack_input_t;
+typedef void* tenpack_output_t;
 typedef void* tenpack_ctx_t;
 
 bool tenpack_context_free(tenpack_ctx_t);
@@ -105,7 +124,34 @@ bool tenpack_unpack( //
     size_t const len,
     tenpack_format_t const format,
     tenpack_dimensions_t const* output_dimensions,
-    void* output,
+    tenpack_output_t output,
+    tenpack_ctx_t* context);
+
+/**
+ * @brief Changes/transposes the content order in an Array-of-Structures to
+ * Structure-of-Arrays form, more familiar to machine-learning libraries.
+ * Overall volume of content-populated memory will remain the same, but
+ * intermediate allocations may still take place for the @param context.
+ */
+bool tenpack_transpose( //
+    tenpack_dimensions_t const* dimensions,
+    tenpack_output_t output,
+    tenpack_ctx_t* context);
+
+/**
+ * @brief Accepts an Apache Arrow binary "StringsArray" and performs the
+ * entire introspection and extraction pipeline on each of its members:
+ * > guess format,
+ * > guess dimensions,
+ * > unpack,
+ * > transpose.
+ */
+bool tenpack_export( //
+    tenpack_input_t const input_tape_start,
+    uint32_t const* input_tape_offsets,
+    size_t const count,
+    tenpack_output_t output_tensor_start,
+    tenpack_dimensions_t const* output_sample_dimensions,
     tenpack_ctx_t* context);
 
 bool tenpack_context_free(tenpack_ctx_t);

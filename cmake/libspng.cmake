@@ -23,5 +23,4 @@ include_directories(${LIBSPNG_INCLUDE_DIR})
 link_directories(${LIBSPNG_LIB_DIR})
 
 add_library(libspng_static STATIC IMPORTED)
-set_property(TARGET libspng_static PROPERTY
-             IMPORTED_LOCATION "${LIBSPNG_LIB_DIR}/libspng_static.a")
+set_property(TARGET libspng_static PROPERTY IMPORTED_LOCATION "${LIBSPNG_LIB_DIR}/libspng_static.a")

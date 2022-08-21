@@ -31,5 +31,4 @@ include_directories(${LIBVIPS_INCLUDE_DIRS})
 link_directories(${LIBVIPS_LIB_DIR})
 
 add_library(libvips-cpp SHARED IMPORTED)
-set_property(TARGET libvips-cpp PROPERTY
-        IMPORTED_LOCATION "${LIBVIPS_LIB_DIR}/libvips-cpp.so")
+set_property(TARGET libvips-cpp PROPERTY IMPORTED_LOCATION "${LIBVIPS_LIB_DIR}/libvips-cpp.so")

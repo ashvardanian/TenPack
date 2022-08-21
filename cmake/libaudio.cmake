@@ -26,5 +26,4 @@ include_directories(${LIBAUDIO_INCLUDE_DIR})
 link_directories(${LIBAUDIO_LIB_DIR})
 
 add_library(libaudio STATIC IMPORTED)
-set_property(TARGET libaudio PROPERTY
-    IMPORTED_LOCATION "${LIBAUDIO_LIB_DIR}/liblibnyquist.a")
+set_property(TARGET libaudio PROPERTY IMPORTED_LOCATION "${LIBAUDIO_LIB_DIR}/liblibnyquist.a")

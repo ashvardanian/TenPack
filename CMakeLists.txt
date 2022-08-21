@@ -17,6 +17,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunknown-attributes")
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
@@ -26,12 +27,13 @@ include("cmake/libspng.cmake")
 include("cmake/libaudio.cmake")
 find_package(ZLIB REQUIRED)
 find_package(GTest REQUIRED)
+find_package(OpenCV REQUIRED)
 
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio OpenCV::core)
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio GTest::gtest)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio OpenCV::core GTest::gtest)
 
 add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio)
 add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio)

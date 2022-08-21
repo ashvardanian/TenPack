@@ -44,7 +44,7 @@ class ctx_t {
 };
 
 size_t size_bytes(tenpack_dimensions_t const& dims) {
-    return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
+    return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_scalar;
 }
 
 bool tenpack_guess_format( //
@@ -114,7 +114,7 @@ bool tenpack_guess_dimensions( //
 
         dims.width = static_cast<size_t>(jpeg_width);
         dims.height = static_cast<size_t>(jpeg_height);
-        dims.bytes_per_channel = 1;
+        dims.bytes_per_scalar = 1;
         dims.frames = 1;
         return success;
     }
@@ -127,7 +127,7 @@ bool tenpack_guess_dimensions( //
 
         dims.width = static_cast<size_t>(ihdr.width);
         dims.height = static_cast<size_t>(ihdr.height);
-        dims.bytes_per_channel = 1;
+        dims.bytes_per_scalar = 1;
         dims.frames = 1;
         dims.channels = 3;
         return success;
@@ -162,11 +162,11 @@ bool tenpack_unpack( //
         // Flags:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gacb233cfd722d66d1ccbf48a7de81f0e0
         TJPF pixel_format;
-        if (dims.bytes_per_channel == 1 && dims.channels == 3)
+        if (dims.bytes_per_scalar == 1 && dims.channels == 3)
             pixel_format = TJPF_RGB;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
+        else if (dims.bytes_per_scalar == 1 && dims.channels == 1)
             pixel_format = TJPF_GRAY;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 4)
+        else if (dims.bytes_per_scalar == 1 && dims.channels == 4)
             pixel_format = TJPF_RGBA;
         else
             return false;
@@ -194,17 +194,17 @@ bool tenpack_unpack( //
         spng_get_ihdr(ctx_ptr->png(), &ihdr);
         spng_format format;
 
-        if (dims.bytes_per_channel == 1 && dims.channels == 4)
+        if (dims.bytes_per_scalar == 1 && dims.channels == 4)
             format = SPNG_FMT_RGBA8;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 3)
+        else if (dims.bytes_per_scalar == 1 && dims.channels == 3)
             format = SPNG_FMT_RGB8;
-        else if (dims.bytes_per_channel == 2 && dims.channels == 2)
+        else if (dims.bytes_per_scalar == 2 && dims.channels == 2)
             format = SPNG_FMT_GA16;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 2)
+        else if (dims.bytes_per_scalar == 1 && dims.channels == 2)
             format = SPNG_FMT_GA8;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
+        else if (dims.bytes_per_scalar == 1 && dims.channels == 1)
             format = SPNG_FMT_G8;
-        else if (dims.bytes_per_channel == 2 && dims.channels == 4)
+        else if (dims.bytes_per_scalar == 2 && dims.channels == 4)
             format = SPNG_FMT_RGBA16;
         else
             return false;
@@ -215,6 +215,12 @@ bool tenpack_unpack( //
 
     default: return false;
     }
+}
+
+bool tenpack_transpose( //
+    tenpack_dimensions_t const* dimensions,
+    tenpack_output_t output,
+    tenpack_ctx_t* context) {
 }
 
 bool tenpack_context_free(tenpack_ctx_t ctx) {

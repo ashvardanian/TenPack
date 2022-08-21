@@ -23,5 +23,4 @@ include_directories(${LIBTURBOJPEG_INCLUDE_DIR})
 link_directories(${LIBTURBOJPEG_LIB_DIR})
 
 add_library(libturbojpeg STATIC IMPORTED)
-set_property(TARGET libturbojpeg PROPERTY
-             IMPORTED_LOCATION "${LIBTURBOJPEG_LIB_DIR}/libturbojpeg.a")
+set_property(TARGET libturbojpeg PROPERTY IMPORTED_LOCATION "${LIBTURBOJPEG_LIB_DIR}/libturbojpeg.a")
