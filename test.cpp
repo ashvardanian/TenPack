@@ -25,7 +25,7 @@ int main() {
         file.close();
 
         // We are going to need temporary memory
-        tenpack_ctx_t ctx;
+        tenpack_ctx_t ctx = nullptr;
 
         // 1
         tenpack_format_t format;
