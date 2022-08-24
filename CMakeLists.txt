@@ -22,8 +22,9 @@ include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 
 include("cmake/libturbojpeg.cmake")
-include("cmake/libspng.cmake")
+include("cmake/libnyquist.cmake")
 include("cmake/libaudio.cmake")
+include("cmake/libspng.cmake")
 include("cmake/libvips.cmake")
 find_package(ZLIB REQUIRED)
 
@@ -32,10 +33,10 @@ pkg_check_modules(glib2 REQUIRED IMPORTED_TARGET glib-2.0)
 
 include_directories(${glib2_INCLUDE_DIRS})
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio  libvips libvips-cpp ${glib2_LIBRARIES})
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libnyquist libvips libvips-cpp ${glib2_LIBRARIES} dl m pthread)
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio libvips libvips-cpp ${glib2_LIBRARIES})
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libnyquist libvips libvips-cpp ${glib2_LIBRARIES} dl m pthread) 
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio  ep-libvips)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio  ep-libvips)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libnyquist ep-libvips)
+add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libnyquist ep-libvips)
