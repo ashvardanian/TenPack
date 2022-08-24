@@ -1,12 +1,15 @@
 #include <array>
 #include <memory>
 #include <cstring>
+#include <fstream>
 #include <cinttypes>
 
+#define MINIAUDIO_IMPLEMENTATION
+#include <miniaudio.h>
+#include <Decoders.h>
+#include <vips/vips.h>
 #include <turbojpeg.h>
 #include <spng.h>
-#include <libnyquist/Decoders.h>
-#include <vips/vips.h>
 
 #include "tenpack.h"
 
@@ -44,7 +47,6 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
 class ctx_t {
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
-    nqr::WavDecoder* wav_ = nullptr;
 
   public:
     ~ctx_t() {
@@ -52,13 +54,10 @@ class ctx_t {
             tjDestroy(jpeg_);
         if (png_)
             spng_ctx_free(png_);
-        if (wav_)
-            wav_->~WavDecoder();
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
     tjhandle jpeg() { return jpeg_ = jpeg_ ?: tjInitDecompress(); }
-    nqr::WavDecoder& wav() { return *wav_; }
 };
 
 size_t size_bytes(tenpack_dimensions_t const& dims) {
@@ -157,31 +156,26 @@ bool tenpack_guess_dimensions( //
 
     case tenpack_format_t::tenpack_gif_k: {
         // GIF header: https://www.libvips.org/API/current/VipsForeignSave.html#vips-gifload-buffer
-
-        // You can set the number of frames with this command "exiftool -b -FrameCount filename.gif"
+        //             https://www.libvips.org/API/current/libvips-header
 
         VipsImage* out = vips_image_new();
         bool success = vips_gifload_buffer((void*)data, len, &out, "access", VIPS_ACCESS_SEQUENTIAL, NULL) == 0;
-        dims.width = size_t(out->Xsize);
+        dims.frames = vips_image_get_n_pages(out);
         dims.height = size_t(out->Ysize);
+        dims.width = size_t(out->Xsize);
         dims.bytes_per_channel = 1;
-        dims.frames = 1;
-        switch (out->Type) {
-        case VIPS_INTERPRETATION_GREY16: dims.channels = 1; break;
-        case VIPS_INTERPRETATION_CMYK: dims.channels = 4; break;
-        case VIPS_INTERPRETATION_sRGB: dims.channels = 4; break;
-        case VIPS_INTERPRETATION_RGB: dims.channels = 3; break;
-        default: dims.channels = 4; break;
-        }
+        dims.channels = out->Bands;
         return success;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
 
         nqr::AudioData file_data;
-        auto buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
-        std::vector<uint8_t> buffer(buff, buff + len);
-        ctx_ptr->wav().LoadFromBuffer(&file_data, buffer);
+        nqr::WavDecoder wav_dec;
+
+        uint8_t* buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
+
+        wav_dec.LoadFromBuffer(&file_data, std::vector<uint8_t>(buff, buff + len));
 
         dims.bytes_per_channel = file_data.frameSize / file_data.channelCount;
         dims.width = file_data.sampleRate * file_data.lengthSeconds;
@@ -279,25 +273,21 @@ bool tenpack_unpack( //
         // Flags: https://www.libvips.org/API/current/VipsForeignSave.html#VipsForeignFlags
 
         VipsImage* in = vips_image_new();
-        VipsImage* out = vips_image_new();
         bool success_parse = vips_gifload_buffer((void*)data, len, &in, 0) == 0;
 
-        bool success = vips_image_decode(in, &out) == 0;
-        output = out->data;
-        return success;
+        size_t length = size_bytes(dims);
+        output = vips_image_write_to_memory(in, &length);
+
+        return output ? true : false;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
 
-        nqr::AudioData file_data;
-
-        auto buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
-        std::vector<uint8_t> buffer(buff, buff + len);
-
-        ctx_ptr->wav().LoadFromBuffer(&file_data, buffer);
-        output = file_data.samples.data();
-
-        return file_data.lengthSeconds ? true : false;
+        size_t length = size_bytes(dims);
+        void* out;
+        bool success = ma_decode_memory(data, length, NULL, nullptr, &out) == 0;
+        output = out;
+        return success;
     }
 
     default: return false;
