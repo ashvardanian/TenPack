@@ -6,7 +6,6 @@
 
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
-#include <Decoders.h>
 #include <vips/vips.h>
 #include <turbojpeg.h>
 #include <spng.h>
@@ -125,7 +124,7 @@ bool tenpack_guess_dimensions( //
         TJCS color_space = static_cast<TJCS>(jpeg_color_space);
         switch (color_space) {
         case TJCS_GRAY: dims.channels = 1; break;
-        case TJCS_YCbCr: dims.channels = 3; break;
+        case TJCS_YCbCr: dims.channels = 4; break;
         case TJCS_RGB: dims.channels = 3; break;
         default: dims.channels = 4; break;
         // ? Unsupported:
@@ -150,7 +149,15 @@ bool tenpack_guess_dimensions( //
         dims.height = static_cast<size_t>(ihdr.height);
         dims.bytes_per_channel = 1;
         dims.frames = 1;
-        dims.channels = 3;
+
+        switch (ihdr.color_type) {
+        case 0: dims.channels = 1; break;
+        case 2: dims.channels = 3; break;
+        case 4: dims.channels = 4; break;
+        case 6: dims.channels = 4; break;
+        default: return false;
+        }
+
         return success;
     }
 
@@ -169,21 +176,18 @@ bool tenpack_guess_dimensions( //
     }
 
     case tenpack_format_t::tenpack_wav_k: {
-
-        nqr::AudioData file_data;
-        nqr::WavDecoder wav_dec;
-
-        uint8_t* buff = reinterpret_cast<uint8_t*>(const_cast<void*>(data));
-
-        wav_dec.LoadFromBuffer(&file_data, std::vector<uint8_t>(buff, buff + len));
-
-        dims.bytes_per_channel = file_data.frameSize / file_data.channelCount;
-        dims.width = file_data.sampleRate * file_data.lengthSeconds;
-        dims.channels = file_data.channelCount;
+        ma_decoder decoder;
+        unsigned long long int size = 0;
+        bool success = ma_decoder_init_memory(data, len, NULL, &decoder) == 0;
+        ma_decoder_get_length_in_pcm_frames(&decoder, &size);
+        
+        dims.bytes_per_channel = decoder.outputFormat / decoder.outputChannels;
+        dims.channels = decoder.outputChannels;
+        dims.width = size;
         dims.height = 1;
         dims.frames = 1;
-
-        return file_data.lengthSeconds ? true : false;
+        
+        return success;
     }
 
     default: return false;
@@ -225,15 +229,15 @@ bool tenpack_unpack( //
             return false;
 
         bool success = tjDecompress2( //
-            ctx_ptr->jpeg(),
-            reinterpret_cast<unsigned char const*>(data),
-            static_cast<unsigned long>(len),
-            reinterpret_cast<unsigned char*>(output),
-            output_dimensions->width,  // width
-            0,                         // pitch
-            output_dimensions->height, // height
-            pixel_format,
-            0);
+                           ctx_ptr->jpeg(),
+                           reinterpret_cast<unsigned char const*>(data),
+                           static_cast<unsigned long>(len),
+                           reinterpret_cast<unsigned char*>(output),
+                           output_dimensions->width,  // width
+                           0,                         // pitch
+                           output_dimensions->height, // height
+                           pixel_format,
+                           0) == 0;
         return success;
     }
 
