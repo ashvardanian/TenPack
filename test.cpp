@@ -1,7 +1,6 @@
 #include <fstream>
 #include <cstring>
 #include <vector>
-#include <string>
 
 #include "tenpack.h"
 
@@ -57,7 +56,7 @@ bool check_output_equality(std::vector<std::vector<u_int8_t>>& unpacked_buffers)
     return success;
 }
 
-int main(int argc, u_int8_t* argv[]) {
+int main(int argc, char* argv[]) {
 
     std::vector<std::string> paths_white {//
                                           "assets/jpeg_white.jpg",

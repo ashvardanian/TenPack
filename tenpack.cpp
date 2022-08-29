@@ -83,7 +83,11 @@ bool tenpack_guess_format( //
     if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, len)) return true;
     if (matches(prefix_riff_k, content, len))
     {
-        if (*format = tenpack_wav_k; matches(prefix_wav_k, content + 8, len - 8)) return true;
+        if (matches(prefix_wav_k, content + 8, len - 8))
+        {
+            *format = tenpack_wav_k; 
+             return true;
+        }
     }
     // clang-format on
 
@@ -162,17 +166,18 @@ bool tenpack_guess_dimensions( //
     }
 
     case tenpack_format_t::tenpack_gif_k: {
-        // GIF header: https://www.libvips.org/API/current/VipsForeignSave.html#vips-gifload-buffer
+        // GIF header: https://www.libvips.org/API/current/VipsImage.html#vips-image-new-from-buffer
         //             https://www.libvips.org/API/current/libvips-header
 
-        VipsImage* out = vips_image_new();
-        bool success = vips_gifload_buffer((void*)data, len, &out, "access", VIPS_ACCESS_SEQUENTIAL, NULL) == 0;
-        dims.frames = vips_image_get_n_pages(out);
-        dims.height = size_t(out->Ysize);
-        dims.width = size_t(out->Xsize);
+        VipsImage* vips = nullptr;
+        vips = vips_image_new_from_buffer(data, len, "", NULL);
+
+        dims.frames = vips_image_get_n_pages(vips);
+        dims.height = size_t(vips->Ysize);
+        dims.width = size_t(vips->Xsize);
         dims.bytes_per_channel = 1;
-        dims.channels = out->Bands;
-        return success;
+        dims.channels = vips->Bands;
+        return vips;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
@@ -180,13 +185,13 @@ bool tenpack_guess_dimensions( //
         unsigned long long int size = 0;
         bool success = ma_decoder_init_memory(data, len, NULL, &decoder) == 0;
         ma_decoder_get_length_in_pcm_frames(&decoder, &size);
-        
+
         dims.bytes_per_channel = decoder.outputFormat / decoder.outputChannels;
         dims.channels = decoder.outputChannels;
         dims.width = size;
         dims.height = 1;
         dims.frames = 1;
-        
+
         return success;
     }
 
@@ -246,6 +251,7 @@ bool tenpack_unpack( //
         // Pixel formats: https://libspng.org/docs/context/#spng_format
         // Flags: https://libspng.org/docs/decode/#spng_decode_flags
         // TODO: What "This function can only be called once per context" means?!
+
         spng_ihdr ihdr;
         spng_set_png_buffer(ctx_ptr->png(), data, len);
         spng_get_ihdr(ctx_ptr->png(), &ihdr);
@@ -271,18 +277,15 @@ bool tenpack_unpack( //
     }
 
     case tenpack_format_t::tenpack_gif_k: {
-        // Decoding API: https://www.libvips.org/API/current/VipsImage.html#vips-image-decode
-        // Pixel interpretation: https://www.libvips.org/API/current/VipsImage.html#VipsInterpretation
-        // Pixel formats: https://www.libvips.org/API/current/VipsImage.html#VipsBandFormat
+        // Decoding API: https://www.libvips.org/API/current/VipsImage.html#vips-image-write-to-memory
         // Flags: https://www.libvips.org/API/current/VipsForeignSave.html#VipsForeignFlags
 
-        VipsImage* in = vips_image_new();
-        bool success_parse = vips_gifload_buffer((void*)data, len, &in, 0) == 0;
+        VipsImage* vips = nullptr;
+        vips = vips_image_new_from_buffer(data, len, "", NULL);
 
         size_t length = size_bytes(dims);
-        output = vips_image_write_to_memory(in, &length);
-
-        return output ? true : false;
+        output = vips_image_write_to_memory(vips, &length);
+        return output;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
