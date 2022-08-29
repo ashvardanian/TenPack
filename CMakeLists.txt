@@ -28,14 +28,16 @@ include("cmake/libvips.cmake")
 find_package(ZLIB REQUIRED)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(glib2 REQUIRED IMPORTED_TARGET glib-2.0)
+pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
 
-include_directories(${glib2_INCLUDE_DIRS})
+include_directories(${GLIB_INCLUDE_DIRS})
 add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libvips libvips-cpp ${glib2_LIBRARIES} dl m pthread)
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libvips dl m pthread ${GLIB_LIBRARIES})
+target_include_directories(tenpack PRIVATE ${GLIB_INCLUDE_DIRS})
 
 add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libvips libvips-cpp ${glib2_LIBRARIES} dl m pthread)
+target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libvips dl m pthread ${GLIB_LIBRARIES})
+target_include_directories(tenpack_test PRIVATE ${GLIB_INCLUDE_DIRS})
 
 add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libvips)
 add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libvips)
