@@ -24,20 +24,20 @@ set(FETCHCONTENT_QUIET OFF)
 include("cmake/libturbojpeg.cmake")
 include("cmake/libaudio.cmake")
 include("cmake/libspng.cmake")
-include("cmake/libvips.cmake")
+include("cmake/libffmpeg.cmake")
 find_package(ZLIB REQUIRED)
+
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
 
 include_directories(${GLIB_INCLUDE_DIRS})
-add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libvips dl m pthread ${GLIB_LIBRARIES})
+add_library(tenpack STATIC tenpack.cpp)
+target_link_libraries(tenpack libavcodec libavformat libavutil libavdevice libturbojpeg libspng_static ZLIB::ZLIB dl m pthread ${GLIB_LIBRARIES})
 target_include_directories(tenpack PRIVATE ${GLIB_INCLUDE_DIRS})
 
-add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libvips dl m pthread ${GLIB_LIBRARIES})
-target_include_directories(tenpack_test PRIVATE ${GLIB_INCLUDE_DIRS})
+add_executable(tenpack_test test.cpp)
+target_link_libraries(tenpack_test tenpack )
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libvips)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libvips)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-ffmpeg)
+add_dependencies(tenpack_test tenpack)
