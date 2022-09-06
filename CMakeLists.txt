@@ -25,6 +25,7 @@ include("cmake/libturbojpeg.cmake")
 include("cmake/libaudio.cmake")
 include("cmake/libspng.cmake")
 include("cmake/libffmpeg.cmake")
+include("cmake/libnsgif.cmake")
 find_package(ZLIB REQUIRED)
 
 
@@ -33,11 +34,11 @@ pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
 
 include_directories(${GLIB_INCLUDE_DIRS})
 add_library(tenpack STATIC tenpack.cpp)
-target_link_libraries(tenpack libavcodec libavformat libavutil libavdevice libturbojpeg libspng_static ZLIB::ZLIB dl m pthread ${GLIB_LIBRARIES})
+target_link_libraries(tenpack libavcodec libavformat libavutil libavdevice libnsgif libturbojpeg libspng_static ZLIB::ZLIB dl m pthread ${GLIB_LIBRARIES})
 target_include_directories(tenpack PRIVATE ${GLIB_INCLUDE_DIRS})
 
 add_executable(tenpack_test test.cpp)
 target_link_libraries(tenpack_test tenpack )
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-ffmpeg)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-ffmpeg ep-libnsgif)
 add_dependencies(tenpack_test tenpack)
