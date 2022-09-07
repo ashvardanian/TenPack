@@ -16,8 +16,8 @@ extern "C" {
 
 #include "tenpack.h"
 
-#define BYTES_PER_PIXEL 4
-#define MAX_IMAGE_BYTES (48 * 1024 * 1024)
+constexpr std::size_t bytes_per_pixel_k = 4ull;
+constexpr std::size_t max_image_bytes_k = 48ull * 1024ull * 1024ull;
 
 // Image
 constexpr unsigned char prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
@@ -41,21 +41,16 @@ constexpr unsigned char prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
 
 static void* bitmap_create(int width, int height) {
     /* ensure a stupidly large bitmap is not created */
-    if (((long long)width * (long long)height) > (MAX_IMAGE_BYTES / BYTES_PER_PIXEL)) {
+    if (((long long)width * (long long)height) > (max_image_bytes_k / bytes_per_pixel_k)) {
         return NULL;
     }
-    return calloc(width * height, BYTES_PER_PIXEL);
+    return calloc(width * height, bytes_per_pixel_k);
 }
 
 static void bitmap_set_opaque(void* bitmap, bool opaque) {
-    (void)opaque; /* unused */
-    (void)bitmap; /* unused */
-    assert(bitmap);
 }
 
 static bool bitmap_test_opaque(void* bitmap) {
-    (void)bitmap; /* unused */
-    assert(bitmap);
     return false;
 }
 
@@ -70,9 +65,6 @@ static void bitmap_destroy(void* bitmap) {
 }
 
 static void bitmap_modified(void* bitmap) {
-    (void)bitmap; /* unused */
-    assert(bitmap);
-    return;
 }
 
 template <typename at, std::size_t length_ak>
@@ -86,19 +78,23 @@ bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
     return matches;
 }
 
-class ctx_t {
+static nsgif_bitmap_cb_vt bitmap_callbacks {
+    bitmap_create,
+    bitmap_destroy,
+    bitmap_get_buffer,
+    bitmap_set_opaque,
+    bitmap_test_opaque,
+    bitmap_modified,
+};
 
-    nsgif_bitmap_cb_vt bitmap_callbacks = { //
-        bitmap_create,
-        bitmap_destroy,
-        bitmap_get_buffer,
-        bitmap_set_opaque,
-        bitmap_test_opaque,
-        bitmap_modified};
+class ctx_t {
 
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
     nsgif_t* gif_ = nullptr;
+    ma_decoder wav_;
+
+    bool wav_state = false;
 
   public:
     ~ctx_t() {
@@ -108,16 +104,18 @@ class ctx_t {
             spng_ctx_free(png_);
         if (gif_)
             nsgif_destroy(gif_);
+        if (wav_state)
+            ma_decoder_uninit(&wav_);
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
     tjhandle jpeg() { return jpeg_ = jpeg_ ?: tjInitDecompress(); }
     nsgif_t* gif() {
-        if (!gif_) {
+        if (!gif_)
             nsgif_create(&bitmap_callbacks, NSGIF_BITMAP_FMT_R8G8B8A8, &gif_);
-        }
         return gif_;
     };
+    ma_decoder* wav() { return &wav_; }
 };
 
 size_t size_bytes(tenpack_dimensions_t const& dims) {
@@ -228,10 +226,7 @@ bool tenpack_guess_dimensions( //
 
     case tenpack_format_t::tenpack_gif_k: {
 
-        bool success = nsgif_data_scan( //
-                           ctx_ptr->gif(),
-                           len,
-                           reinterpret_cast<uint8_t*>(const_cast<void*>(data))) == 0;
+        bool success = nsgif_data_scan(ctx_ptr->gif(), len, (uint8_t*)data) == 0;
 
         auto info = nsgif_get_info(ctx_ptr->gif());
 
@@ -245,13 +240,15 @@ bool tenpack_guess_dimensions( //
     }
 
     case tenpack_format_t::tenpack_wav_k: {
-        ma_decoder decoder;
         unsigned long long int size = 0;
-        bool success = ma_decoder_init_memory(data, len, NULL, &decoder) == 0;
-        ma_decoder_get_length_in_pcm_frames(&decoder, &size);
+        auto decoder = ctx_ptr->wav();
+        bool success = ma_decoder_init_memory(data, len, NULL, decoder) == MA_SUCCESS;
+        if (!success)
+            return false;
 
-        dims.bytes_per_channel = decoder.outputFormat / decoder.outputChannels;
-        dims.channels = decoder.outputChannels;
+        success = ma_decoder_get_length_in_pcm_frames(decoder, &size) == MA_SUCCESS;
+        dims.bytes_per_channel = decoder->outputFormat / decoder->outputChannels;
+        dims.channels = decoder->outputChannels;
         dims.width = size;
         dims.height = 1;
         dims.frames = 1;
@@ -317,8 +314,9 @@ bool tenpack_unpack( //
         // TODO: What "This function can only be called once per context" means?!
 
         spng_ihdr ihdr;
-        spng_set_png_buffer(ctx_ptr->png(), data, len);
-        spng_get_ihdr(ctx_ptr->png(), &ihdr);
+        auto spng_context = ctx_ptr->png();
+        spng_set_png_buffer(spng_context, data, len);
+        spng_get_ihdr(spng_context, &ihdr);
         spng_format format;
 
         if (dims.bytes_per_channel == 1 && dims.channels == 4)
@@ -336,28 +334,23 @@ bool tenpack_unpack( //
         else
             return false;
 
-        bool success = spng_decode_image(ctx_ptr->png(), output, size_bytes(dims), format, 0) == 0;
+        bool success = spng_decode_image(spng_context, output, size_bytes(dims), format, 0) == 0;
         return success;
     }
 
     case tenpack_format_t::tenpack_gif_k: {
 
-        bool success = false;
+        bool success = nsgif_data_scan(ctx_ptr->gif(), len, (uint8_t*)data) == 0;
+        if (!success)
+            return false;
 
-        bool success_parse = nsgif_data_scan( //
-                                 ctx_ptr->gif(),
-                                 len,
-                                 reinterpret_cast<uint8_t*>(const_cast<void*>(data))) == 0;
-
-        size_t size = dims.channels * dims.height * dims.width;
-        void* bitmap = nullptr;
-        
+        size_t const size = dims.channels * dims.height * dims.width;
         for (size_t frame_num = 0; frame_num < dims.frames; ++frame_num) {
-            success = nsgif_frame_decode(ctx_ptr->gif(), frame_num, &bitmap) == 0;
-            std::copy( //
-                reinterpret_cast<uint8_t*>(bitmap),
-                reinterpret_cast<uint8_t*>(bitmap) + size,
-                reinterpret_cast<uint8_t*>(output));
+            void* bitmap = nullptr;
+            bool success = nsgif_frame_decode(ctx_ptr->gif(), frame_num, &bitmap) == 0;
+            if (!success)
+                return false;
+            std::memcpy(output + size * frame_num, bitmap, size);
         }
 
         return success;
@@ -366,9 +359,9 @@ bool tenpack_unpack( //
     case tenpack_format_t::tenpack_wav_k: {
 
         size_t length = size_bytes(dims);
-        void* out;
+        void* out = nullptr;
         bool success = ma_decode_memory(data, length, NULL, nullptr, &out) == 0;
-        output = out;
+        std::memcpy(output, out, length);
         return success;
     }
 
