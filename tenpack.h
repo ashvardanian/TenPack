@@ -58,8 +58,8 @@ bool tenpack_context_free(tenpack_ctx_t);
  *
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
- * @param[inout] format  Pointer, where the guess will be written.
- * @param[inout] context Pointer, where the guess will be written.
+ * @param[inout] format  Object, where the guessed fromat will be written.
+ * @param[inout] context A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
@@ -71,15 +71,17 @@ bool tenpack_guess_format( //
     tenpack_ctx_t* context);
 
 /**
- * @brief Guesses the format of binary data just by comparing various binary signatures.
+ * @brief Guesses the file dimensions of binary data just by reading binary signatures.
  *
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
  * @param[in] format     The format of data in `[data, data+len)`.
- * @param[inout]dims     Output dimensions of image.
+ * @param[inout] dims     Output dimensions of image.
  *                       > For JPEG and PNG, 3 dims: width, height, channels.
  *                       > For GIF, 3 dims: width, height, frames.
  *                       > For AVI, 4 dims: width, height, channels, frames.
+ * @param[inout] context A pointer to where the file handler is stored.
+ * 
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
  */
@@ -91,11 +93,14 @@ bool tenpack_guess_dimensions( //
     tenpack_ctx_t* context);
 
 /**
- * @brief Guesses the format of binary data just by comparing various binary signatures.
+ * @brief unpacking binary data.
  *
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
  * @param[in] format     The format of data in `[data, data+len)`.
+ * @param[in] output_dimensions     Output tensor property.
+ * @param[in] output     Output tensor.
+ * @param[inout] context A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
