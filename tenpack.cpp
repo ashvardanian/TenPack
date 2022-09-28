@@ -20,24 +20,27 @@ constexpr std::size_t bytes_per_pixel_k = 4ull;
 constexpr std::size_t max_image_bytes_k = 48ull * 1024ull * 1024ull;
 
 // Image
-constexpr unsigned char prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
-constexpr unsigned char prefix_png_k[4] {0x89, 0x50, 0x4E, 0x47};
-constexpr unsigned char prefix_gif_k[3] {0x47, 0x49, 0x46};
-constexpr unsigned char prefix_bmp_k[2] {0x42, 0x4D};
-constexpr unsigned char prefix_jpeg2000_k[13] {0x0, 0x0, 0x0, 0xC, 0x6A, 0x50, 0x20, 0x20, 0xD, 0xA, 0x87, 0xA, 0x0};
-constexpr unsigned char prefix_jxr_k[3] {0x49, 0x49, 0xBC};
-constexpr unsigned char prefix_psd_k[4] {0x38, 0x42, 0x50, 0x53};
-constexpr unsigned char prefix_ico_k[4] {0x00, 0x00, 0x01, 0x00};
-constexpr unsigned char prefix_dwg_k[4] {0x41, 0x43, 0x31, 0x30};
+constexpr uint8_t prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
+constexpr uint8_t prefix_png_k[4] {0x89, 0x50, 0x4E, 0x47};
+constexpr uint8_t prefix_gif_k[3] {0x47, 0x49, 0x46};
+constexpr uint8_t prefix_bmp_k[2] {0x42, 0x4D};
+constexpr uint8_t prefix_jpeg2000_k[13] {0x0, 0x0, 0x0, 0xC, 0x6A, 0x50, 0x20, 0x20, 0xD, 0xA, 0x87, 0xA, 0x0};
+constexpr uint8_t prefix_jxr_k[3] {0x49, 0x49, 0xBC};
+constexpr uint8_t prefix_psd_k[4] {0x38, 0x42, 0x50, 0x53};
+constexpr uint8_t prefix_ico_k[4] {0x00, 0x00, 0x01, 0x00};
+constexpr uint8_t prefix_dwg_k[4] {0x41, 0x43, 0x31, 0x30};
 
 // The Resource Interchange File Format (RIFF)
 // is a generic file container format for storing
 // data in tagged chunks.
 // About RIFF -> https://en.wikipedia.org/wiki/Resource_Interchange_File_Format
-constexpr unsigned char prefix_riff_k[4] {0x52, 0x49, 0x46, 0x46};
+constexpr uint8_t prefix_riff_k[4] {0x52, 0x49, 0x46, 0x46};
 
 // Audio
-constexpr unsigned char prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
+constexpr uint8_t prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
+
+// Video
+constexpr uint8_t prefix_mpeg4_k[8] {0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D};
 
 static void* bitmap_create(int width, int height) {
     /* ensure a stupidly large bitmap is not created */
@@ -54,9 +57,9 @@ static bool bitmap_test_opaque(void* bitmap) {
     return false;
 }
 
-static unsigned char* bitmap_get_buffer(void* bitmap) {
+static uint8_t* bitmap_get_buffer(void* bitmap) {
     assert(bitmap);
-    return reinterpret_cast<unsigned char*>(bitmap);
+    return reinterpret_cast<uint8_t*>(bitmap);
 }
 
 static void bitmap_destroy(void* bitmap) {
@@ -104,8 +107,10 @@ class ctx_t {
             spng_ctx_free(png_);
         if (gif_)
             nsgif_destroy(gif_);
-        if (wav_state)
+        if (wav_state) {
             ma_decoder_uninit(&wav_);
+            wav_state = false;
+        }
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
@@ -115,7 +120,11 @@ class ctx_t {
             nsgif_create(&bitmap_callbacks, NSGIF_BITMAP_FMT_R8G8B8A8, &gif_);
         return gif_;
     };
-    ma_decoder* wav() { return &wav_; }
+    ma_decoder* wav() {
+        if (!wav_state)
+            wav_state = true;
+        return &wav_;
+    }
 };
 
 size_t size_bytes(tenpack_dimensions_t const& dims) {
@@ -128,7 +137,7 @@ bool tenpack_guess_format( //
     tenpack_format_t* format,
     tenpack_ctx_t* context) {
 
-    auto content = reinterpret_cast<unsigned char const*>(data);
+    auto content = reinterpret_cast<uint8_t const*>(data);
 
     // clang-format off
     if (*format = tenpack_jpeg_k; matches(prefix_jpeg_k, content, len)) return true;
@@ -140,6 +149,7 @@ bool tenpack_guess_format( //
     if (*format = tenpack_psd_k; matches(prefix_psd_k, content, len)) return true;
     if (*format = tenpack_ico_k; matches(prefix_ico_k, content, len)) return true;
     if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, len)) return true;
+
     if (matches(prefix_riff_k, content, len))
     {
         if (matches(prefix_wav_k, content + 8, len - 8))
@@ -148,6 +158,10 @@ bool tenpack_guess_format( //
              return true;
         }
     }
+
+    // MPEG4 format offset is 4  
+    if (*format = tenpack_mpeg4_k; matches(prefix_mpeg4_k, content + 4, len - 4)) return true;
+
     // clang-format on
 
     return false;
@@ -178,7 +192,7 @@ bool tenpack_guess_dimensions( //
         int jpeg_width = 0, jpeg_height = 0, jpeg_sub_sample = 0, jpeg_color_space = 0;
         bool success = tjDecompressHeader3( //
                            ctx_ptr->jpeg(),
-                           reinterpret_cast<unsigned char const*>(data),
+                           reinterpret_cast<uint8_t const*>(data),
                            static_cast<unsigned long>(len),
                            &jpeg_width,
                            &jpeg_height,
@@ -296,9 +310,9 @@ bool tenpack_unpack( //
 
         bool success = tjDecompress2( //
                            ctx_ptr->jpeg(),
-                           reinterpret_cast<unsigned char const*>(data),
+                           reinterpret_cast<uint8_t const*>(data),
                            static_cast<unsigned long>(len),
-                           reinterpret_cast<unsigned char*>(output),
+                           reinterpret_cast<uint8_t*>(output),
                            output_dimensions->width,  // width
                            0,                         // pitch
                            output_dimensions->height, // height
