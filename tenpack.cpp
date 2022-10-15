@@ -107,10 +107,8 @@ class ctx_t {
             spng_ctx_free(png_);
         if (gif_)
             nsgif_destroy(gif_);
-        if (wav_state) {
+        if (wav_state = false; wav_state)
             ma_decoder_uninit(&wav_);
-            wav_state = false;
-        }
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
