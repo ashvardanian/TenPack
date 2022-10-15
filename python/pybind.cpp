@@ -9,7 +9,7 @@ struct py_tenpack_t {
     tenpack_dimensions_t dims;
 };
 
-PYBIND11_MODULE(tenpack, t) {
+PYBIND11_MODULE(tenpack_module, t) {
     t.doc() =
         "Python bindings for TenPack multimedia unpacking library.\n"
         "Supports:\n"
@@ -46,9 +46,16 @@ PYBIND11_MODULE(tenpack, t) {
                  tenpack_guess_dimensions(data.data(), data.size(), format, &self.dims, &self.ctx);
                  return format;
              })
-        .def("unpack", [](py_tenpack_t& self, std::vector<uint8_t> data, std::vector<uint8_t> output) {
-            tenpack_format_t format;
-            tenpack_unpack(data.data(), data.size(), format, &self.dims, output.data(), &self.ctx);
-            return format;
+        .def("unpack",
+             [](py_tenpack_t& self, std::vector<uint8_t> data, std::vector<uint8_t> output) {
+                 tenpack_format_t format;
+                 output.resize(self.dims.bytes_per_channel * self.dims.channels * self.dims.frames * self.dims.height *
+                               self.dims.width);
+                 tenpack_unpack(data.data(), data.size(), format, &self.dims, output.data(), &self.ctx);
+                 return format;
+             })
+        .def("ctx_free", [](py_tenpack_t& self) {
+            tenpack_context_free(self.ctx);
+            return true;
         });
 }
