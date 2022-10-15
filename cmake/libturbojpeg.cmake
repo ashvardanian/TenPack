@@ -13,7 +13,7 @@ ExternalProject_Add(
     INSTALL_DIR "_deps/libturbojpeg-install"
     BINARY_DIR "_deps/libturbojpeg-build"
 
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=clean
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=clean -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 )
 
 set(LIBTURBOJPEG_INCLUDE_DIR _deps/libturbojpeg-build/clean/include)
