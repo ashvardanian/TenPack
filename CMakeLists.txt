@@ -16,7 +16,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fPIC")
 
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
@@ -34,6 +34,7 @@ pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
 
 find_package(Python 3.9 COMPONENTS Interpreter Development NumPy REQUIRED)
 include_directories(${Python_NumPy_INCLUDE_DIRS})
+include_directories(${pybind11_INCLUDE_DIRS})
 
 include_directories(${GLIB_INCLUDE_DIRS})
 add_library(tenpack STATIC tenpack.cpp)
@@ -43,12 +44,14 @@ target_include_directories(tenpack PRIVATE ${GLIB_INCLUDE_DIRS})
 
 get_target_property(TARGET_LIBRARIES tenpack LINK_LIBRARIES)
 
-pybind11_add_module(tenpack_module MODULE python/pybind.cpp)
-target_link_libraries(tenpack_module PRIVATE ${TARGET_LIBRARIES})
-target_include_directories(tenpack_module PUBLIC python/)
-
 add_executable(tenpack_test test.cpp)
 target_link_libraries(tenpack_test tenpack)
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-ffmpeg ep-libnsgif)
+pybind11_add_module(tenpack_module MODULE python/pybind.cpp)
+target_link_libraries(tenpack_module PRIVATE tenpack ${TARGET_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(tenpack_module PUBLIC python/)
+
+add_test(NAME tenpack_module_test COMMAND ${Python_EXECUTABLE} python/tests/pytest.py)
+
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libnsgif)
 add_dependencies(tenpack_test tenpack)
