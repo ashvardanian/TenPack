@@ -2,8 +2,9 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
-#include "../tenpack.h"
+#include "tenpack.h"
 
+namespace py = pybind11;
 struct py_tenpack_t {
     tenpack_ctx_t ctx = nullptr;
     tenpack_dimensions_t dims;
@@ -19,7 +20,7 @@ PYBIND11_MODULE(tenpack_module, t) {
         "> Get unpacked file in tensor.\n"
         "---------------------------------------------\n";
 
-    pybind11::enum_<tenpack_format_t>(t, "format", "File format enumeration")
+    py::enum_<tenpack_format_t>(t, "format", "File format enumeration")
         .value("bmp", tenpack_bmp_k, "File format bmp")
         .value("gif", tenpack_gif_k, "File format gif")
         .value("jxr", tenpack_jxr_k, "File format jxr")
@@ -34,22 +35,31 @@ PYBIND11_MODULE(tenpack_module, t) {
         .value("mpeg4", tenpack_mpeg4_k, "File format mpeg4")
         .export_values();
 
-    pybind11::class_<py_tenpack_t>(t, "tenpack")
+    py::class_<py_tenpack_t>(t, "tenpack")
         .def("guess_format",
-             [](py_tenpack_t& self, std::vector<uint8_t> data) {
+             [](py_tenpack_t& self, py::object const& input) {
+                 auto data = py::cast<std::vector<uint8_t>>(input);
                  tenpack_guess_format(data.data(), data.size(), &self.format, &self.ctx);
                  return true;
              })
         .def("guess_dims",
-             [](py_tenpack_t& self, std::vector<uint8_t> data) {
+             [](py_tenpack_t& self, py::object const& input) {
+                 auto data = py::cast<std::vector<uint8_t>>(input);
                  tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
                  return true;
              })
         .def("unpack",
-             [](py_tenpack_t& self, std::vector<uint8_t> data, std::vector<uint8_t> output) {
-                 output.resize(self.dims.bytes_per_channel * self.dims.channels * self.dims.frames * self.dims.height *
-                               self.dims.width);
-                 tenpack_unpack(data.data(), data.size(), self.format, &self.dims, output.data(), &self.ctx);
+             [](py_tenpack_t& self, py::object const& input, py::object& output) {
+                 auto input_data = py::cast<std::vector<uint8_t>>(input);
+                 std::vector<uint8_t> output_data(self.dims.bytes_per_channel * self.dims.channels * self.dims.frames *
+                                                  self.dims.height * self.dims.width);
+                 tenpack_unpack(input_data.data(),
+                                input_data.size(),
+                                self.format,
+                                &self.dims,
+                                output_data.data(),
+                                &self.ctx);
+                 output = py::cast(output_data);
                  return true;
              })
         .def("ctx_free", [](py_tenpack_t& self) {
