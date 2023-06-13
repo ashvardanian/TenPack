@@ -1,4 +1,4 @@
-build/
+build_debug/
 CMakeCache.txt
 _deps/
 Makefile
