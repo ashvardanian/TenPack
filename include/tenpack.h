@@ -46,6 +46,7 @@ struct tenpack_dimensions_t {
     size_t height;
     size_t channels;
     size_t bytes_per_channel;
+    bool is_signed = false;
 };
 
 typedef void const* tenpack_input_t;
@@ -81,7 +82,7 @@ bool tenpack_guess_format( //
  *                       > For GIF, 3 dims: width, height, frames.
  *                       > For AVI, 4 dims: width, height, channels, frames.
  * @param[inout] context A pointer to where the file handler is stored.
- * 
+ *
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
  */
@@ -112,8 +113,6 @@ bool tenpack_unpack( //
     tenpack_dimensions_t const* output_dimensions,
     void* output,
     tenpack_ctx_t* context);
-
-bool tenpack_context_free(tenpack_ctx_t);
 
 #ifdef __cplusplus
 } /* end extern "C" */
