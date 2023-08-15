@@ -1,1 +1,1 @@
-pip install --upgrade --force-reinstall . && pytest --capture=no python/tests/
+pip install --upgrade --force-reinstall . && pytest python/tests/test.py
