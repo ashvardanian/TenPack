@@ -31,5 +31,8 @@
     "features": {
         "git": "os-provided",
         "git-lfs": "latest"
-    }
+    },
+    "mounts": [
+		"source=/path/to/your/samples,target=/home/vscode/samples,type=bind,consistency=ro"
+	]
 }
