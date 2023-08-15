@@ -1,8 +1,9 @@
-#include <array>
 #include <memory>
 #include <cstring>
-#include <fstream>
 #include <cinttypes>
+
+#define DR_WAV_IMPLEMENTATION
+#include "dr_wav.h"
 
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
@@ -16,8 +17,8 @@ extern "C" {
 
 #include "tenpack.h"
 
-constexpr std::size_t bytes_per_pixel_k = 4ull;
-constexpr std::size_t max_image_bytes_k = 48ull * 1024ull * 1024ull;
+constexpr size_t bytes_per_pixel_k = 4ull;
+constexpr size_t max_image_bytes_k = 48ull * 1024ull * 1024ull;
 
 // Image
 constexpr uint8_t prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
@@ -70,13 +71,13 @@ static void bitmap_destroy(void* bitmap) {
 static void bitmap_modified(void* bitmap) {
 }
 
-template <typename at, std::size_t length_ak>
-bool matches(at (&prefix)[length_ak], at* content, std::size_t content_len) {
+template <typename at, size_t length_ak>
+bool matches(at (&prefix)[length_ak], at* content, size_t content_len) {
     if (content_len < length_ak) [[unlikely]]
         return false;
     bool matches = true;
 #pragma unroll_completely
-    for (std::size_t i = 0; i != length_ak; ++i)
+    for (size_t i = 0; i != length_ak; ++i)
         matches &= prefix[i] == content[i];
     return matches;
 }
@@ -95,8 +96,8 @@ class ctx_t {
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
     nsgif_t* gif_ = nullptr;
-    ma_decoder wav_;
-
+    // ma_decoder wav_;
+    drwav wav_;
     bool wav_state = false;
 
   public:
@@ -108,7 +109,7 @@ class ctx_t {
         if (gif_)
             nsgif_destroy(gif_);
         if (wav_state = false; wav_state)
-            ma_decoder_uninit(&wav_);
+            drwav_uninit(&wav_);
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
@@ -118,14 +119,16 @@ class ctx_t {
             nsgif_create(&bitmap_callbacks, NSGIF_BITMAP_FMT_R8G8B8A8, &gif_);
         return gif_;
     };
-    ma_decoder* wav() {
+    drwav* wav() {
         if (!wav_state)
             wav_state = true;
         return &wav_;
     }
 };
 
-size_t size_bytes(tenpack_dimensions_t const& dims) {
+size_t size_bytes(tenpack_dimensions_t const& dims, tenpack_format_t const format) {
+    if (format == tenpack_wav_k)
+        return dims.frames * dims.channels * dims.width;
     return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
 }
 
@@ -199,9 +202,9 @@ bool tenpack_guess_dimensions( //
         TJCS color_space = static_cast<TJCS>(jpeg_color_space);
         switch (color_space) {
         case TJCS_GRAY: dims.channels = 1; break;
-        case TJCS_YCbCr: dims.channels = 4; break;
+        case TJCS_YCbCr: dims.channels = 3; break;
         case TJCS_RGB: dims.channels = 3; break;
-        default: dims.channels = 4; break;
+        default: dims.channels = 3; break;
         // ? Unsupported:
         case TJCS_CMYK: dims.channels = 4; break;
         case TJCS_YCCK: dims.channels = 4; break;
@@ -222,14 +225,15 @@ bool tenpack_guess_dimensions( //
 
         dims.width = static_cast<size_t>(ihdr.width);
         dims.height = static_cast<size_t>(ihdr.height);
-        dims.bytes_per_channel = 1;
+        dims.bytes_per_channel = ihdr.bit_depth / 8;
         dims.frames = 1;
 
         switch (ihdr.color_type) {
-        case 0: dims.channels = 1; break;
-        case 2: dims.channels = 3; break;
-        case 4: dims.channels = 4; break;
-        case 6: dims.channels = 4; break;
+        case SPNG_COLOR_TYPE_GRAYSCALE: dims.channels = 1; break;
+        case SPNG_COLOR_TYPE_INDEXED: dims.channels = 1; break;
+        case SPNG_COLOR_TYPE_GRAYSCALE_ALPHA: dims.channels = 2; break;
+        case SPNG_COLOR_TYPE_TRUECOLOR: dims.channels = 3; break;
+        case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA: dims.channels = 4; break;
         default: return false;
         }
 
@@ -243,7 +247,7 @@ bool tenpack_guess_dimensions( //
         auto info = nsgif_get_info(ctx_ptr->gif());
 
         dims.bytes_per_channel = 1;
-        dims.channels = 4;
+        dims.channels = 3;
         dims.width = info->width;
         dims.height = info->height;
         dims.frames = info->frame_count;
@@ -252,19 +256,15 @@ bool tenpack_guess_dimensions( //
     }
 
     case tenpack_format_t::tenpack_wav_k: {
-        unsigned long long int size = 0;
-        auto decoder = ctx_ptr->wav();
-        bool success = ma_decoder_init_memory(data, len, NULL, decoder) == MA_SUCCESS;
-        if (!success)
-            return false;
 
-        success = ma_decoder_get_length_in_pcm_frames(decoder, &size) == MA_SUCCESS;
-        dims.bytes_per_channel = decoder->outputFormat / decoder->outputChannels;
-        dims.channels = decoder->outputChannels;
-        dims.width = size;
-        dims.height = 1;
-        dims.frames = 1;
+        bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
 
+        dims.bytes_per_channel = ctx_ptr->wav()->bitsPerSample / 8;
+        dims.channels = ctx_ptr->wav()->channels;
+        dims.frames = ctx_ptr->wav()->totalPCMFrameCount;
+        dims.height = ctx_ptr->wav()->sampleRate;
+        dims.width = dims.frames * dims.channels;
+        dims.is_signed = !ctx_ptr->wav()->aiff.isUnsigned;
         return success;
     }
 
@@ -329,24 +329,24 @@ bool tenpack_unpack( //
         auto spng_context = ctx_ptr->png();
         spng_set_png_buffer(spng_context, data, len);
         spng_get_ihdr(spng_context, &ihdr);
-        spng_format format;
+        spng_format fmt;
 
         if (dims.bytes_per_channel == 1 && dims.channels == 4)
-            format = SPNG_FMT_RGBA8;
+            fmt = SPNG_FMT_RGBA8;
         else if (dims.bytes_per_channel == 1 && dims.channels == 3)
-            format = SPNG_FMT_RGB8;
+            fmt = SPNG_FMT_RGB8;
         else if (dims.bytes_per_channel == 2 && dims.channels == 2)
-            format = SPNG_FMT_GA16;
+            fmt = SPNG_FMT_GA16;
         else if (dims.bytes_per_channel == 1 && dims.channels == 2)
-            format = SPNG_FMT_GA8;
+            fmt = SPNG_FMT_GA8;
         else if (dims.bytes_per_channel == 1 && dims.channels == 1)
-            format = SPNG_FMT_G8;
+            fmt = SPNG_FMT_G8;
         else if (dims.bytes_per_channel == 2 && dims.channels == 4)
-            format = SPNG_FMT_RGBA16;
+            fmt = SPNG_FMT_RGBA16;
         else
             return false;
 
-        bool success = spng_decode_image(spng_context, output, size_bytes(dims), format, 0) == 0;
+        bool success = spng_decode_image(spng_context, output, size_bytes(dims, format), fmt, 0) == 0;
         return success;
     }
 
@@ -359,10 +359,10 @@ bool tenpack_unpack( //
         size_t const size = dims.channels * dims.height * dims.width;
         for (size_t frame_num = 0; frame_num < dims.frames; ++frame_num) {
             void* bitmap = nullptr;
-            bool success = nsgif_frame_decode(ctx_ptr->gif(), frame_num, &bitmap) == 0;
+            success = nsgif_frame_decode(ctx_ptr->gif(), frame_num, &bitmap) == 0;
             if (!success)
                 return false;
-            std::memcpy(output + size * frame_num, bitmap, size);
+            memcpy(reinterpret_cast<uint8_t*>(output) + size * frame_num, bitmap, size);
         }
 
         return success;
@@ -370,11 +370,10 @@ bool tenpack_unpack( //
 
     case tenpack_format_t::tenpack_wav_k: {
 
-        size_t length = size_bytes(dims);
-        void* out = nullptr;
-        bool success = ma_decode_memory(data, length, NULL, nullptr, &out) == 0;
-        std::memcpy(output, out, length);
-        return success;
+        bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
+        if (!success)
+            return false;
+        return drwav_read_pcm_frames(ctx_ptr->wav(), dims.width, output) == dims.width;
     }
 
     default: return false;
