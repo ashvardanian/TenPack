@@ -13,6 +13,8 @@ void decode(std::string const& path, std::vector<uint8_t>& unpacked, tenpack_ctx
 
     // Read entire file
     std::ifstream file(path, std::ifstream::binary);
+    if (!file)
+        throw std::invalid_argument("Can't open file!");
     std::vector<uint8_t> input((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
 
