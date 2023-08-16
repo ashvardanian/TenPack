@@ -71,43 +71,21 @@ PYBIND11_MODULE(tenpack_module, t) {
         .def("unpack",
              [](py_tenpack_t& self, py::list& input) {
                  bool is_signed = self.dims.is_signed;
-                 size_t size = choose_size(self);
-                 uint8_t* output_data = new uint8_t[size];
+                 size_t sz = choose_size(self);
+                 uint8_t* out_data = new uint8_t[sz];
                  auto input_data = py::cast<std::vector<uint8_t>>(input);
-                 tenpack_unpack(input_data.data(), input_data.size(), self.format, &self.dims, output_data, &self.ctx);
+                 tenpack_unpack(input_data.data(), input_data.size(), self.format, &self.dims, out_data, &self.ctx);
 
-                 size /= self.dims.bytes_per_channel;
-                 switch (self.dims.bytes_per_channel) {
-                 case 1: {
-                     if (is_signed)
-                         return py::cast(std::vector<int8_t> {(int8_t*)output_data, ((int8_t*)output_data) + size});
-                     else
-                         return py::cast(std::vector<uint8_t> {(uint8_t*)output_data, ((uint8_t*)output_data) + size});
-                 }
-                 case 2: {
-                     if (is_signed) {
-                         return py::cast(std::vector<int16_t> {(int16_t*)output_data, ((int16_t*)output_data) + size});
-                     }
-                     else
-                         return py::cast(
-                             std::vector<uint16_t> {(uint16_t*)output_data, ((uint16_t*)output_data) + size});
-                 }
-                 case 4: {
-                     if (is_signed) {
-                         return py::cast(std::vector<int32_t> {(int32_t*)output_data, ((int32_t*)output_data) + size});
-                     }
-                     else
-                         return py::cast(
-                             std::vector<uint32_t> {(uint32_t*)output_data, ((uint32_t*)output_data) + size});
-                 }
-                 case 8: {
-                     if (is_signed) {
-                         return py::cast(std::vector<int64_t> {(int64_t*)output_data, ((int64_t*)output_data) + size});
-                     }
-                     else
-                         return py::cast(
-                             std::vector<uint64_t> {(uint64_t*)output_data, ((uint64_t*)output_data) + size});
-                 }
+                 sz /= self.dims.bytes_per_channel;
+                 switch (is_signed ? int(self.dims.bytes_per_channel) * -1 : int(self.dims.bytes_per_channel)) {
+                 case 1: return py::cast(std::vector<uint8_t> {(uint8_t*)out_data, ((uint8_t*)out_data) + sz});
+                 case 2: return py::cast(std::vector<uint16_t> {(uint16_t*)out_data, ((uint16_t*)out_data) + sz});
+                 case 4: return py::cast(std::vector<uint32_t> {(uint32_t*)out_data, ((uint32_t*)out_data) + sz});
+                 case 8: return py::cast(std::vector<uint64_t> {(uint64_t*)out_data, ((uint64_t*)out_data) + sz});
+                 case -1: return py::cast(std::vector<int8_t> {(int8_t*)out_data, ((int8_t*)out_data) + sz});
+                 case -2: return py::cast(std::vector<int16_t> {(int16_t*)out_data, ((int16_t*)out_data) + sz});
+                 case -4: return py::cast(std::vector<int32_t> {(int32_t*)out_data, ((int32_t*)out_data) + sz});
+                 case -8: return py::cast(std::vector<int64_t> {(int64_t*)out_data, ((int64_t*)out_data) + sz});
                  default: return py::object {};
                  }
              })
