@@ -8,9 +8,11 @@
 #include <turbojpeg.h>
 #include <spng.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <nsgif.h>
 }
 
 #include "tenpack.h"
@@ -41,34 +43,6 @@ constexpr uint8_t prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
 // Video
 constexpr uint8_t prefix_mpeg4_k[8] {0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D};
 
-static void* bitmap_create(int width, int height) {
-    /* ensure a stupidly large bitmap is not created */
-    if (((long long)width * (long long)height) > (max_image_bytes_k / bytes_per_pixel_k)) {
-        return NULL;
-    }
-    return calloc(width * height, bytes_per_pixel_k);
-}
-
-static void bitmap_set_opaque(void* bitmap, bool opaque) {
-}
-
-static bool bitmap_test_opaque(void* bitmap) {
-    return false;
-}
-
-static uint8_t* bitmap_get_buffer(void* bitmap) {
-    assert(bitmap);
-    return reinterpret_cast<uint8_t*>(bitmap);
-}
-
-static void bitmap_destroy(void* bitmap) {
-    assert(bitmap);
-    free(bitmap);
-}
-
-static void bitmap_modified(void* bitmap) {
-}
-
 template <typename at, size_t length_ak>
 bool matches(at (&prefix)[length_ak], at* content, size_t content_len) {
     if (content_len < length_ak) [[unlikely]]
@@ -80,21 +54,10 @@ bool matches(at (&prefix)[length_ak], at* content, size_t content_len) {
     return matches;
 }
 
-static nsgif_bitmap_cb_vt bitmap_callbacks {
-    bitmap_create,
-    bitmap_destroy,
-    bitmap_get_buffer,
-    bitmap_set_opaque,
-    bitmap_test_opaque,
-    bitmap_modified,
-};
-
 class ctx_t {
 
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
-    nsgif_t* gif_ = nullptr;
-    // ma_decoder wav_;
     drwav wav_;
     bool wav_state = false;
 
@@ -104,19 +67,12 @@ class ctx_t {
             tjDestroy(jpeg_);
         if (png_)
             spng_ctx_free(png_);
-        if (gif_)
-            nsgif_destroy(gif_);
         if (wav_state = false; wav_state)
             drwav_uninit(&wav_);
     }
 
     spng_ctx* png() { return png_ = png_ ?: spng_ctx_new(0); }
     tjhandle jpeg() { return jpeg_ = jpeg_ ?: tjInitDecompress(); }
-    nsgif_t* gif() {
-        if (!gif_)
-            nsgif_create(&bitmap_callbacks, NSGIF_BITMAP_FMT_R8G8B8A8, &gif_);
-        return gif_;
-    };
     drwav* wav() {
         if (!wav_state)
             wav_state = true;
@@ -126,7 +82,7 @@ class ctx_t {
 
 size_t size_bytes(tenpack_dimensions_t const& dims, tenpack_format_t const format) {
     if (format == tenpack_wav_k)
-        return dims.frames * dims.channels * dims.width;
+        return dims.frames * dims.width;
     return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
 }
 
@@ -240,17 +196,22 @@ bool tenpack_guess_dimensions( //
 
     case tenpack_format_t::tenpack_gif_k: {
 
-        bool success = nsgif_data_scan(ctx_ptr->gif(), len, (uint8_t*)data) == 0;
-
-        auto info = nsgif_get_info(ctx_ptr->gif());
-
+        int* delays = nullptr;
+        int comp, req_comp = 3;
         dims.bytes_per_channel = 1;
         dims.channels = 3;
-        dims.width = info->width;
-        dims.height = info->height;
-        dims.frames = info->frame_count;
+        auto result = stbi_load_gif_from_memory( //
+            (stbi_uc*)data,
+            len,
+            &delays,
+            (int*)&dims.width,
+            (int*)&dims.height,
+            (int*)&dims.frames,
+            &comp,
+            req_comp);
+        dims.channels = 3;
 
-        return success;
+        return result != nullptr;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
@@ -350,20 +311,21 @@ bool tenpack_unpack( //
 
     case tenpack_format_t::tenpack_gif_k: {
 
-        bool success = nsgif_data_scan(ctx_ptr->gif(), len, (uint8_t*)data) == 0;
-        if (!success)
+        int* delays = nullptr;
+        int comp, req_comp = 3;
+        stbi_uc* buffer = stbi_load_gif_from_memory((stbi_uc*)data,
+                                                    len,
+                                                    &delays,
+                                                    (int*)&dims.width,
+                                                    (int*)&dims.height,
+                                                    (int*)&dims.frames,
+                                                    &comp,
+                                                    req_comp);
+
+        if (!buffer)
             return false;
-
-        size_t const size = dims.channels * dims.height * dims.width;
-        for (size_t frame_num = 0; frame_num < dims.frames; ++frame_num) {
-            void* bitmap = nullptr;
-            success = nsgif_frame_decode(ctx_ptr->gif(), frame_num, &bitmap) == 0;
-            if (!success)
-                return false;
-            memcpy(reinterpret_cast<uint8_t*>(output) + size * frame_num, bitmap, size);
-        }
-
-        return success;
+        std::memcpy(output, buffer, size_bytes(dims, format));
+        return true;
     }
 
     case tenpack_format_t::tenpack_wav_k: {
