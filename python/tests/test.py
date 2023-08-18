@@ -2,11 +2,10 @@ import os
 import pathlib
 import numpy as np
 
+import cv2
 import wave
 import imageio
 from PIL import Image
-from skimage import io
-from skimage.metrics import structural_similarity as ssim
 
 import tenpack_module
 
@@ -32,8 +31,8 @@ def export(tenpack, buffer: list):
             media = media.reshape(tenpack.dims.height, tenpack.dims.width, 3)
             imageio.imwrite('output.jpg', media)
     elif tenpack.format == tenpack_module.format.gif:
-        images = [np.array(tenpack.dims.frames, dtype=np.uint8) for tenpack.dims.frames in buffer]
-        imageio.mimsave('output.gif', images)
+        media = np.array(buffer, dtype=np.uint8).reshape(tenpack.dims.frames, tenpack.dims.height, tenpack.dims.width, tenpack.dims.channels)
+        imageio.mimsave('output.gif', media, format='GIF', loop=0, duration=0.01)
     elif tenpack.format == tenpack_module.format.wav:
         media = np.array(buffer, dtype=np.int16)
         with wave.open('output.wav', 'w') as wav_file:
@@ -69,6 +68,29 @@ def compare_image_content(lhs, rhs, tenpack):
             frames1 = wav1.readframes(wav1.getnframes())
             frames2 = wav2.readframes(wav2.getnframes())
             assert frames1 == frames2
+    elif tenpack.format == tenpack_module.format.gif:
+        gif1 = imageio.mimread(lhs)
+        gif2 = imageio.mimread(rhs)
+        assert len(gif1) == len(gif2)
+
+        hist_diffs = []
+        for frame_num in range(len(gif1)):
+            image1 = gif1[frame_num]
+            image2 = gif2[frame_num]
+
+            if image1.shape[-1] == 3:
+                image1 = cv2.cvtColor(image1, cv2.COLOR_RGB2GRAY)
+            if image2.shape[-1] == 3:
+                image2 = cv2.cvtColor(image2, cv2.COLOR_RGB2GRAY)
+
+            hist1 = cv2.calcHist([image1], [0], None, [256], [0, 256])
+            hist2 = cv2.calcHist([image2], [0], None, [256], [0, 256])
+
+            hist_diff = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+            hist_diffs.append(hist_diff)
+
+        avg_hist_diff = sum(hist_diffs) / len(hist_diffs)
+        assert avg_hist_diff == 1.0
 
 
 def test_equality():
