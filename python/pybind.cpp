@@ -57,36 +57,33 @@ PYBIND11_MODULE(tenpack_module, t) {
         .def_readwrite("dims", &py_tenpack_t::dims)
         .def_readwrite("format", &py_tenpack_t::format)
         .def("guess_format",
-             [](py_tenpack_t& self, py::list& input) {
-                 auto data = py::cast<std::vector<uint8_t>>(input);
+             [](py_tenpack_t& self, std::string_view data) {
                  tenpack_guess_format(data.data(), data.size(), &self.format, &self.ctx);
                  return true;
              })
         .def("guess_dims",
-             [](py_tenpack_t& self, py::list& input) {
-                 auto data = py::cast<std::vector<uint8_t>>(input);
+             [](py_tenpack_t& self, std::string_view data) {
                  tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
                  return true;
              })
         .def("unpack",
-             [](py_tenpack_t& self, py::list& input) {
+             [](py_tenpack_t& self, std::string_view data) -> py::object {
                  bool is_signed = self.dims.is_signed;
                  size_t sz = choose_size(self);
-                 uint8_t* out_data = new uint8_t[sz];
-                 auto input_data = py::cast<std::vector<uint8_t>>(input);
-                 tenpack_unpack(input_data.data(), input_data.size(), self.format, &self.dims, out_data, &self.ctx);
+                 py::array_t<uint8_t> out_data(sz);
+                 tenpack_unpack(data.data(), data.size(), self.format, &self.dims, out_data.request().ptr, &self.ctx);
 
                  sz /= self.dims.bytes_per_channel;
                  switch (is_signed ? int(self.dims.bytes_per_channel) * -1 : int(self.dims.bytes_per_channel)) {
-                 case 1: return py::cast(std::vector<uint8_t> {(uint8_t*)out_data, ((uint8_t*)out_data) + sz});
-                 case 2: return py::cast(std::vector<uint16_t> {(uint16_t*)out_data, ((uint16_t*)out_data) + sz});
-                 case 4: return py::cast(std::vector<uint32_t> {(uint32_t*)out_data, ((uint32_t*)out_data) + sz});
-                 case 8: return py::cast(std::vector<uint64_t> {(uint64_t*)out_data, ((uint64_t*)out_data) + sz});
-                 case -1: return py::cast(std::vector<int8_t> {(int8_t*)out_data, ((int8_t*)out_data) + sz});
-                 case -2: return py::cast(std::vector<int16_t> {(int16_t*)out_data, ((int16_t*)out_data) + sz});
-                 case -4: return py::cast(std::vector<int32_t> {(int32_t*)out_data, ((int32_t*)out_data) + sz});
-                 case -8: return py::cast(std::vector<int64_t> {(int64_t*)out_data, ((int64_t*)out_data) + sz});
-                 default: return py::object {};
+                 case 1: return out_data;
+                 case 2: return out_data.cast<py::array_t<uint16_t>>();
+                 case 4: return out_data.cast<py::array_t<uint32_t>>();
+                 case 8: return out_data.cast<py::array_t<uint64_t>>();
+                 case -1: return out_data.cast<py::array_t<int8_t>>();
+                 case -2: return out_data.cast<py::array_t<int16_t>>();
+                 case -4: return out_data.cast<py::array_t<int32_t>>();
+                 case -8: return out_data.cast<py::array_t<int64_t>>();
+                 default: return py::none {};
                  }
              })
         .def("ctx_free", [](py_tenpack_t& self) {
