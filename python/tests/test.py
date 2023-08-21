@@ -18,7 +18,7 @@ def get_paths() -> list:
     return [os.path.join(samples_path, file) for file in os.listdir(samples_path)]
 
 
-def export(tenpack, buffer: list):
+def export(tenpack, buffer: bytes):
     if tenpack.format == tenpack_module.format.png:
         media = np.array(buffer, dtype=np.uint8)
         image = Image.fromarray(media)
@@ -100,7 +100,7 @@ def test_equality():
     for path in paths:
         output_file = 'output' + pathlib.Path(path).suffix
         with open(path, 'rb') as file:
-            file_data = list(file.read())
+            file_data = bytes(file.read())
         assert tenpack.guess_format(file_data) == True
         assert tenpack.guess_dims(file_data) == True
         output_data = tenpack.unpack(file_data)
