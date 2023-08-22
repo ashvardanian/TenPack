@@ -11,10 +11,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-}
-
 #include "tenpack.h"
 
 constexpr size_t bytes_per_pixel_k = 4ull;
