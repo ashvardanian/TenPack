@@ -41,9 +41,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -g")
 
-
-find_package(PkgConfig REQUIRED)
-
 find_package(Python 3.10.6 COMPONENTS Interpreter Development NumPy REQUIRED)
 include_directories(${Python_NumPy_INCLUDE_DIRS})
 include_directories(${pybind11_INCLUDE_DIRS})
@@ -65,5 +62,4 @@ if(${TENPACK_BUILD_PYTHON})
     pybind11_add_module(tenpack_module MODULE python/pybind.cpp)
     target_link_libraries(tenpack_module PRIVATE tenpack ${TARGET_LIBRARIES} ${PYTHON_LIBRARIES})
     target_include_directories(tenpack_module PUBLIC python/)
-    
 endif()

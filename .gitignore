@@ -10,3 +10,6 @@ Makefile
 cmake_install.cmake
 *.d
 *.log
+*.so
+samples/
+data/
