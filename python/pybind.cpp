@@ -13,11 +13,40 @@ struct py_tenpack_t {
     tenpack_format_t format;
 };
 
-size_t choose_size(py_tenpack_t const& tp) {
-    switch (tp.format) {
-    case tenpack_format_t::tenpack_wav_k: return tp.dims.width * tp.dims.bytes_per_channel;
-    default: return tp.dims.bytes_per_channel * tp.dims.channels * tp.dims.frames * tp.dims.height * tp.dims.width;
+struct py_tensor_t {
+    py::object numpy;
+    void* data;
+};
+
+template <typename scalar_at>
+py_tensor_t py_tensor(std::initializer_list<Py_ssize_t> dims) {
+    py::array_t<scalar_at> numpy(dims);
+    void* data = numpy.request().ptr;
+    return {py::object(std::move(numpy)), data};
+}
+
+py_tensor_t allocate(py_tenpack_t const& tp) {
+    if (tp.format == tenpack_format_t::tenpack_wav_k) {
+        switch (tp.dims.bytes_per_channel) {
+        case 1: return py_tensor<int8_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 2: return py_tensor<int16_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 4: return py_tensor<int32_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 8: return py_tensor<int64_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        }
     }
+    else {
+        switch (tp.dims.is_signed ? int(tp.dims.bytes_per_channel) * -1 : int(tp.dims.bytes_per_channel)) {
+        case 1: return py_tensor<uint8_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 2: return py_tensor<uint16_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 4: return py_tensor<uint32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 8: return py_tensor<uint64_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -1: return py_tensor<int8_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -2: return py_tensor<int16_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -4: return py_tensor<int32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -8: return py_tensor<int64_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+        }
+    }
+    return {py::none {}, nullptr};
 }
 
 PYBIND11_MODULE(tenpack_module, t) {
@@ -68,23 +97,9 @@ PYBIND11_MODULE(tenpack_module, t) {
              })
         .def("unpack",
              [](py_tenpack_t& self, std::string_view data) -> py::object {
-                 bool is_signed = self.dims.is_signed;
-                 size_t sz = choose_size(self);
-                 py::array_t<uint8_t> out_data(sz);
-                 tenpack_unpack(data.data(), data.size(), self.format, &self.dims, out_data.request().ptr, &self.ctx);
-
-                 sz /= self.dims.bytes_per_channel;
-                 switch (is_signed ? int(self.dims.bytes_per_channel) * -1 : int(self.dims.bytes_per_channel)) {
-                 case 1: return out_data;
-                 case 2: return out_data.cast<py::array_t<uint16_t>>();
-                 case 4: return out_data.cast<py::array_t<uint32_t>>();
-                 case 8: return out_data.cast<py::array_t<uint64_t>>();
-                 case -1: return out_data.cast<py::array_t<int8_t>>();
-                 case -2: return out_data.cast<py::array_t<int16_t>>();
-                 case -4: return out_data.cast<py::array_t<int32_t>>();
-                 case -8: return out_data.cast<py::array_t<int64_t>>();
-                 default: return py::none {};
-                 }
+                 auto tensor = allocate(self);
+                 tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
+                 return tensor.numpy;
              })
         .def("ctx_free", [](py_tenpack_t& self) {
             tenpack_context_free(self.ctx);
