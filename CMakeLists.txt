@@ -23,8 +23,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fPIC")
-
 include(FetchContent)
 include_directories(include/)
 
@@ -37,18 +35,22 @@ include("cmake/libspng.cmake")
 include("cmake/libstb.cmake")
 find_package(ZLIB REQUIRED)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -g")
+
+
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
 
 find_package(Python 3.10.6 COMPONENTS Interpreter Development NumPy REQUIRED)
 include_directories(${Python_NumPy_INCLUDE_DIRS})
 include_directories(${pybind11_INCLUDE_DIRS})
 
-include_directories(${GLIB_INCLUDE_DIRS})
 add_library(tenpack STATIC src/tenpack.cpp)
 
-target_link_libraries(tenpack  libturbojpeg libspng_static ZLIB::ZLIB dl m pthread ${GLIB_LIBRARIES})
-target_include_directories(tenpack PRIVATE ${GLIB_INCLUDE_DIRS})
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB dl m pthread)
 get_target_property(TARGET_LIBRARIES tenpack LINK_LIBRARIES)
 add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libstb  ep-libdr_libs)
 

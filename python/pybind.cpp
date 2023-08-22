@@ -19,7 +19,7 @@ struct py_tensor_t {
 };
 
 template <typename scalar_at>
-py_tensor_t py_tensor(std::initializer_list<Py_ssize_t> dims) {
+py_tensor_t py_tensor(std::initializer_list<std::size_t> dims) {
     py::array_t<scalar_at> numpy(dims);
     void* data = numpy.request().ptr;
     return {py::object(std::move(numpy)), data};
