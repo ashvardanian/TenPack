@@ -21,16 +21,16 @@ extern "C" {
 
 enum tenpack_format_t {
 
-    // Images:
+    // Image
     tenpack_bmp_k,
-    tenpack_gif_k,
     tenpack_jxr_k,
     tenpack_png_k,
-    tenpack_psd_k,
-    tenpack_dwg_k,
     tenpack_ico_k,
     tenpack_jpeg_k,
     tenpack_jpeg2000_k,
+
+    // Animation
+    tenpack_gif_k,
 
     // Audio
     tenpack_wav_k,
@@ -38,6 +38,10 @@ enum tenpack_format_t {
     // Video
     tenpack_avi_k,
     tenpack_mpeg4_k,
+
+    // Other
+    tenpack_psd_k,
+    tenpack_dwg_k,
 };
 
 struct tenpack_dimensions_t {
