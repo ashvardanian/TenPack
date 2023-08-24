@@ -18,6 +18,21 @@ struct py_tensor_t {
     void* data;
 };
 
+int guess_media_type(tenpack_format_t fmt) {
+    if (fmt >= tenpack_bmp_k && fmt < tenpack_gif_k)
+        return 1;
+    else if (fmt >= tenpack_gif_k && fmt < tenpack_wav_k)
+        return 2;
+    else if (fmt >= tenpack_wav_k && fmt < tenpack_avi_k)
+        return 3;
+    else if (fmt >= tenpack_avi_k && fmt < tenpack_psd_k)
+        return 4;
+    else if (fmt >= tenpack_psd_k)
+        return 5;
+
+    return 0;
+}
+
 template <typename scalar_at>
 py_tensor_t py_tensor(std::initializer_list<std::size_t> dims) {
     py::array_t<scalar_at> numpy(dims);
@@ -26,16 +41,15 @@ py_tensor_t py_tensor(std::initializer_list<std::size_t> dims) {
 }
 
 py_tensor_t allocate(py_tenpack_t const& tp) {
-    if (tp.format == tenpack_format_t::tenpack_wav_k) {
-        switch (tp.dims.bytes_per_channel) {
-        case 1: return py_tensor<int8_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 2: return py_tensor<int16_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 4: return py_tensor<int32_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 8: return py_tensor<int64_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        }
-    }
-    else {
-        switch (tp.dims.is_signed ? int(tp.dims.bytes_per_channel) * -1 : int(tp.dims.bytes_per_channel)) {
+    int expr = tp.dims.bytes_per_channel;
+    if (tp.dims.is_signed)
+        expr *= -1;
+
+    int type = guess_media_type(tp.format);
+
+    switch (type) {
+    case 1: {
+        switch (expr) {
         case 1: return py_tensor<uint8_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
         case 2: return py_tensor<uint16_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
         case 4: return py_tensor<uint32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
@@ -45,6 +59,27 @@ py_tensor_t allocate(py_tenpack_t const& tp) {
         case -4: return py_tensor<int32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
         case -8: return py_tensor<int64_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
         }
+    }
+    case 2: {
+        switch (expr) {
+        case 1: return py_tensor<uint8_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 2: return py_tensor<uint16_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 4: return py_tensor<uint32_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case 8: return py_tensor<uint64_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -1: return py_tensor<int8_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -2: return py_tensor<int16_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -4: return py_tensor<int32_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        case -8: return py_tensor<int64_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
+        }
+    }
+    case 3: {
+        switch (tp.dims.bytes_per_channel) {
+        case 1: return py_tensor<int8_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 2: return py_tensor<int16_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 4: return py_tensor<int32_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        case 8: return py_tensor<int64_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        }
+    }
     }
     return {py::none {}, nullptr};
 }
