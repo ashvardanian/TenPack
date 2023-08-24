@@ -19,13 +19,13 @@ constexpr size_t max_image_bytes_k = 48ull * 1024ull * 1024ull;
 // Image
 constexpr uint8_t prefix_jpeg_k[3] {0xFF, 0xD8, 0xFF};
 constexpr uint8_t prefix_png_k[4] {0x89, 0x50, 0x4E, 0x47};
-constexpr uint8_t prefix_gif_k[3] {0x47, 0x49, 0x46};
 constexpr uint8_t prefix_bmp_k[2] {0x42, 0x4D};
 constexpr uint8_t prefix_jpeg2000_k[13] {0x0, 0x0, 0x0, 0xC, 0x6A, 0x50, 0x20, 0x20, 0xD, 0xA, 0x87, 0xA, 0x0};
 constexpr uint8_t prefix_jxr_k[3] {0x49, 0x49, 0xBC};
-constexpr uint8_t prefix_psd_k[4] {0x38, 0x42, 0x50, 0x53};
 constexpr uint8_t prefix_ico_k[4] {0x00, 0x00, 0x01, 0x00};
-constexpr uint8_t prefix_dwg_k[4] {0x41, 0x43, 0x31, 0x30};
+
+// Animation
+constexpr uint8_t prefix_gif_k[3] {0x47, 0x49, 0x46};
 
 // The Resource Interchange File Format (RIFF)
 // is a generic file container format for storing
@@ -38,6 +38,10 @@ constexpr uint8_t prefix_wav_k[4] {0x57, 0x41, 0x56, 0x45};
 
 // Video
 constexpr uint8_t prefix_mpeg4_k[8] {0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D};
+
+// Other
+constexpr uint8_t prefix_dwg_k[4] {0x41, 0x43, 0x31, 0x30};
+constexpr uint8_t prefix_psd_k[4] {0x38, 0x42, 0x50, 0x53};
 
 template <typename at, size_t length_ak>
 bool matches(at (&prefix)[length_ak], at* content, size_t content_len) {
