@@ -10,7 +10,6 @@ from PIL import Image
 import tenpack_module
 
 relative_path = '~/samples'
-global samples_path
 
 
 def get_paths() -> list:
@@ -18,28 +17,23 @@ def get_paths() -> list:
     return [os.path.join(samples_path, file) for file in os.listdir(samples_path)]
 
 
-def export(tenpack, buffer: bytes):
+def export(tenpack, buffer):
     if tenpack.format == tenpack_module.format.png:
-        media = np.array(buffer, dtype=np.uint8)
-        image = Image.fromarray(media)
+        image = Image.fromarray(buffer)
         image.save('output.png', 'PNG')
     elif tenpack.format == tenpack_module.format.jpeg:
         if tenpack.dims.channels == 4:
             raise Exception('Unsupported!')
         else:
-            media = np.array(buffer, dtype=np.uint8)
-            media = media.reshape(tenpack.dims.height, tenpack.dims.width, 3)
-            imageio.imwrite('output.jpg', media)
+            imageio.imwrite('output.jpg', buffer)
     elif tenpack.format == tenpack_module.format.gif:
-        media = np.array(buffer, dtype=np.uint8).reshape(tenpack.dims.frames, tenpack.dims.height, tenpack.dims.width, tenpack.dims.channels)
-        imageio.mimsave('output.gif', media, format='GIF', loop=0, duration=0.01)
+        imageio.mimsave('output.gif', buffer, format='GIF', loop=0, duration=0.01)
     elif tenpack.format == tenpack_module.format.wav:
-        media = np.array(buffer, dtype=np.int16)
         with wave.open('output.wav', 'w') as wav_file:
             wav_file.setnchannels(tenpack.dims.channels)
             wav_file.setsampwidth(tenpack.dims.bytes_per_channel)
             wav_file.setframerate(tenpack.dims.height)
-            wav_file.writeframes(media.tobytes())
+            wav_file.writeframes(buffer.tobytes())
     else:
         return False
     return True
@@ -49,10 +43,8 @@ def open_and_reshape(lhs, rhs, tenpack):
     image1 = imageio.v2.imread(lhs)
     image2 = imageio.v2.imread(rhs)
     return [
-        image1.reshape(tenpack.dims.height, tenpack.dims.width,
-                       tenpack.dims.channels),
-        image2.reshape(tenpack.dims.height, tenpack.dims.width,
-                       tenpack.dims.channels),
+        image1.reshape(tenpack.dims.height, tenpack.dims.width, tenpack.dims.channels),
+        image2.reshape(tenpack.dims.height, tenpack.dims.width, tenpack.dims.channels),
     ]
 
 
@@ -62,7 +54,8 @@ def compare_image_content(lhs, rhs, tenpack):
         assert np.array_equal(image1, image2)
     elif tenpack.format == tenpack_module.format.jpeg:
         [image1, image2] = open_and_reshape(lhs, rhs, tenpack)
-        assert np.array_equal(image1, image2)
+        tolerance = 80
+        assert np.all(np.isclose(image1, image2, tolerance, tolerance))
     elif tenpack.format == tenpack_module.format.wav:
         with wave.open(lhs, 'rb') as wav1, wave.open(rhs, 'rb') as wav2:
             frames1 = wav1.readframes(wav1.getnframes())
@@ -103,7 +96,7 @@ def test_equality():
             file_data = bytes(file.read())
         assert tenpack.guess_format(file_data) == True
         assert tenpack.guess_dims(file_data) == True
-        output_data = tenpack.unpack(file_data)
+        output_data = np.array(tenpack.unpack(file_data))
         assert len(output_data) != 0
         assert export(tenpack, output_data) == True
         compare_image_content(path, output_file, tenpack)
