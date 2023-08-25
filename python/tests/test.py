@@ -94,8 +94,6 @@ def test_equality():
         output_file = 'output' + pathlib.Path(path).suffix
         with open(path, 'rb') as file:
             file_data = bytes(file.read())
-        assert tenpack.guess_format(file_data) == True
-        assert tenpack.guess_dims(file_data) == True
         output_data = np.array(tenpack.unpack(file_data))
         assert len(output_data) != 0
         assert export(tenpack, output_data) == True

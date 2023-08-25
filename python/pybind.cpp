@@ -114,24 +114,17 @@ PYBIND11_MODULE(tenpack_module, t) {
         .def_readwrite("width", &tenpack_dimensions_t::width)
         .def_readwrite("height", &tenpack_dimensions_t::height)
         .def_readwrite("channels", &tenpack_dimensions_t::channels)
-        .def_readwrite("bytes_per_channel", &tenpack_dimensions_t::bytes_per_channel);
+        .def_readwrite("bytes_per_channel", &tenpack_dimensions_t::bytes_per_channel)
+        .def_readwrite("is_signed", &tenpack_dimensions_t::is_signed);
 
     py::class_<py_tenpack_t>(t, "tenpack")
         .def(py::init<>())
         .def_readwrite("dims", &py_tenpack_t::dims)
         .def_readwrite("format", &py_tenpack_t::format)
-        .def("guess_format",
-             [](py_tenpack_t& self, std::string_view data) {
-                 tenpack_guess_format(data.data(), data.size(), &self.format, &self.ctx);
-                 return true;
-             })
-        .def("guess_dims",
-             [](py_tenpack_t& self, std::string_view data) {
-                 tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
-                 return true;
-             })
         .def("unpack",
              [](py_tenpack_t& self, std::string_view data) -> py::object {
+                 tenpack_guess_format(data.data(), data.size(), &self.format, &self.ctx);
+                 tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
                  auto tensor = allocate(self);
                  tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
                  return tensor.numpy;
