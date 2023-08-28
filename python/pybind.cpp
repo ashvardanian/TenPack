@@ -145,8 +145,8 @@ PYBIND11_MODULE(tenpack_module, t) {
                 size_t batch_size = paths.size() / threads_count;
 
                 std::thread threads[threads_count];
-                py::tuple array_tuples(paths.size());
-                py::tuple pack_tuples(paths.size());
+                std::vector<py::tuple> arrays(paths.size());
+                std::vector<py_tenpack_t> packs(paths.size());
 
                 auto call = [&](size_t pos, size_t batch) {
                     for (size_t idx = pos; idx < pos + batch; ++idx) {
@@ -164,8 +164,8 @@ PYBIND11_MODULE(tenpack_module, t) {
 
                         auto tensor = allocate(pack);
                         tenpack_unpack(content.data(), content.size(), pack.format, &pack.dims, tensor.data, &pack.ctx);
-                        array_tuples[idx] = std::move(tensor.numpy);
-                        pack_tuples[idx] = std::move(pack);
+                        arrays[idx] = std::move(tensor.numpy);
+                        packs[idx] = std::move(pack);
                     }
                 };
 
@@ -177,7 +177,7 @@ PYBIND11_MODULE(tenpack_module, t) {
 
                 for (size_t idx = 0; idx < threads_count; ++idx)
                     threads[idx].join();
-                return std::make_pair(pack_tuples, array_tuples);
+                return std::make_pair(packs, arrays);
             })
         .def("ctx_free", [](py_tenpack_t& self) {
             tenpack_context_free(self.ctx);
