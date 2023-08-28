@@ -1,4 +1,13 @@
+#include <fcntl.h>    // `open` files
+#include <sys/stat.h> // `stat` to obtain file metadata
+#include <sys/mman.h> // `mmap` to read datasets faster
+#include <unistd.h>   // `close` files
+
+#include <filesystem>
+#include <thread>
+
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/cast.h>
@@ -129,6 +138,47 @@ PYBIND11_MODULE(tenpack_module, t) {
                  tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
                  return tensor.numpy;
              })
+        .def(
+            "unpack_many",
+            [](py_tenpack_t& self, py::list paths, Py_ssize_t threads_count) {
+                threads_count = std::min(size_t(threads_count), size_t(paths.size()));
+                size_t batch_size = paths.size() / threads_count;
+
+                std::thread threads[threads_count];
+                py::tuple array_tuples(paths.size());
+                py::tuple pack_tuples(paths.size());
+
+                auto call = [&](size_t pos, size_t batch) {
+                    for (size_t idx = pos; idx < pos + batch; ++idx) {
+                        py_tenpack_t pack;
+                        auto path = py::cast<std::string_view>(paths[idx]);
+                        auto fd = open(path.data(), O_RDONLY);
+
+                        size_t file_size = std::filesystem::file_size(std::filesystem::path(path.data()));
+                        auto begin = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+                        auto content = std::string_view(reinterpret_cast<char const*>(begin), file_size);
+                        madvise(begin, file_size, MADV_SEQUENTIAL);
+
+                        tenpack_guess_format(content.data(), content.size(), &pack.format, &pack.ctx);
+                        tenpack_guess_dimensions(content.data(), content.size(), pack.format, &pack.dims, &pack.ctx);
+
+                        auto tensor = allocate(pack);
+                        tenpack_unpack(content.data(), content.size(), pack.format, &pack.dims, tensor.data, &pack.ctx);
+                        array_tuples[idx] = std::move(tensor.numpy);
+                        pack_tuples[idx] = std::move(pack);
+                    }
+                };
+
+                for (size_t idx = 0; idx < threads_count - 1; ++idx)
+                    threads[idx] = std::thread(call, idx * batch_size, batch_size);
+                threads[threads_count - 1] = std::thread(call,
+                                                         (threads_count - 1) * batch_size,
+                                                         paths.size() - (threads_count - 1) * batch_size);
+
+                for (size_t idx = 0; idx < threads_count; ++idx)
+                    threads[idx].join();
+                return std::make_pair(pack_tuples, array_tuples);
+            })
         .def("ctx_free", [](py_tenpack_t& self) {
             tenpack_context_free(self.ctx);
             return true;
