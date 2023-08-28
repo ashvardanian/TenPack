@@ -101,5 +101,20 @@ def test_equality():
         os.remove(output_file)
 
 
+def test_equality_many(threads=1):
+    tenpack = tenpack_module.tenpack()
+    paths = get_paths()
+    paths = paths[:-1]
+    pack_tuples, array_tuples = tenpack.unpack_many(paths, threads)
+    for i in range(len(paths)):
+        assert export(pack_tuples[i], array_tuples[i]) == True
+        compare_image_content(paths[i], 'output.jpg', tenpack)
+        os.remove('output.jpg')
+
+
 if __name__ == '__main__':
     test_equality()
+    test_equality_many()
+    test_equality_many(2)
+    test_equality_many(4)
+    test_equality_many(8)
