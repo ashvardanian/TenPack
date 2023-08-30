@@ -180,6 +180,8 @@ PYBIND11_MODULE(tenpack_module, t) {
                                         &packs[idx].dims,
                                         tensors[idx],
                                         &packs[idx].ctx);
+                         munmap((void*)begin, files_sizes[idx]);
+                         close(fds[idx]);
                      }
                  };
 
