@@ -82,11 +82,11 @@ py_tensor_t allocate(py_tenpack_t const& tp) {
         }
     }
     case 3: {
-        switch (tp.dims.bytes_per_channel) {
-        case 1: return py_tensor<int8_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 2: return py_tensor<int16_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 4: return py_tensor<int32_t>({tp.dims.width * tp.dims.bytes_per_channel});
-        case 8: return py_tensor<int64_t>({tp.dims.width * tp.dims.bytes_per_channel});
+        switch (std::abs(expr)) {
+        case 1: return py_tensor<int8_t>({tp.dims.width});
+        case 2: return py_tensor<int16_t>({tp.dims.width});
+        case 4: return py_tensor<int32_t>({tp.dims.width});
+        case 8: return py_tensor<int64_t>({tp.dims.width});
         }
     }
     }
@@ -136,7 +136,7 @@ PYBIND11_MODULE(tenpack_module, t) {
                  tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
                  auto tensor = allocate(self);
                  tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
-                 return tensor.numpy;
+                 return std::move(tensor.numpy);
              })
         .def("unpack_many",
              [](py_tenpack_t& self, py::list paths, Py_ssize_t threads_count) {
@@ -145,7 +145,8 @@ PYBIND11_MODULE(tenpack_module, t) {
                  size_t batch_size = size / threads_count;
 
                  std::thread threads[threads_count];
-                 py::object arrays[size];
+                 py::tuple arrays_tuple(size);
+                 py::tuple packs_tuple(size);
                  py_tenpack_t packs[size];
                  void* tensors[size];
                  size_t files_sizes[size];
@@ -163,7 +164,7 @@ PYBIND11_MODULE(tenpack_module, t) {
                      tenpack_guess_dimensions(begin, file_size, pack.format, &pack.dims, &pack.ctx);
 
                      auto tensor = allocate(pack);
-                     arrays[idx] = std::move(tensor.numpy);
+                     arrays_tuple[idx] = std::move(tensor.numpy);
                      packs[idx] = std::move(pack);
                      tensors[idx] = tensor.data;
                      files_sizes[idx] = file_size;
@@ -193,13 +194,9 @@ PYBIND11_MODULE(tenpack_module, t) {
                  for (size_t idx = 0; idx < threads_count; ++idx)
                      threads[idx].join();
 
-                 py::tuple tuple1;
-                 py::tuple tuple2;
-                 for (size_t i = 0; i < size; ++i) {
-                     tuple1 = tuple1 + py::make_tuple(packs[i]);
-                     tuple2 = tuple2 + py::make_tuple(arrays[i]);
-                 }
-                 return std::make_pair(tuple1, tuple2);
+                 for (size_t i = 0; i < size; ++i)
+                     packs_tuple = packs_tuple + py::make_tuple(std::move(packs[i]));
+                 return std::make_pair(packs_tuple, arrays_tuple);
              })
         .def("ctx_free", [](py_tenpack_t& self) {
             tenpack_context_free(self.ctx);
