@@ -138,47 +138,67 @@ PYBIND11_MODULE(tenpack_module, t) {
                  tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
                  return tensor.numpy;
              })
-        .def(
-            "unpack_many",
-            [](py_tenpack_t& self, py::list paths, Py_ssize_t threads_count) {
-                threads_count = std::min(size_t(threads_count), size_t(paths.size()));
-                size_t batch_size = paths.size() / threads_count;
+        .def("unpack_many",
+             [](py_tenpack_t& self, py::list paths, Py_ssize_t threads_count) {
+                 size_t size = paths.size();
+                 threads_count = std::min(size_t(threads_count), size_t(size));
+                 size_t batch_size = size / threads_count;
 
-                std::thread threads[threads_count];
-                std::vector<py::tuple> arrays(paths.size());
-                std::vector<py_tenpack_t> packs(paths.size());
+                 std::thread threads[threads_count];
+                 py::object arrays[size];
+                 py_tenpack_t packs[size];
+                 void* tensors[size];
+                 size_t files_sizes[size];
+                 int fds[size];
 
-                auto call = [&](size_t pos, size_t batch) {
-                    for (size_t idx = pos; idx < pos + batch; ++idx) {
-                        py_tenpack_t pack;
-                        auto path = py::cast<std::string_view>(paths[idx]);
-                        auto fd = open(path.data(), O_RDONLY);
+                 for (size_t idx = 0; idx < size; ++idx) {
+                     py_tenpack_t pack;
 
-                        size_t file_size = std::filesystem::file_size(std::filesystem::path(path.data()));
-                        auto begin = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-                        auto content = std::string_view(reinterpret_cast<char const*>(begin), file_size);
-                        madvise(begin, file_size, MADV_SEQUENTIAL);
+                     auto path = py::cast<std::string_view>(paths[idx]);
+                     auto fd = open(path.data(), O_RDONLY);
+                     size_t file_size = std::filesystem::file_size(std::filesystem::path(path.data()));
+                     auto begin = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
-                        tenpack_guess_format(content.data(), content.size(), &pack.format, &pack.ctx);
-                        tenpack_guess_dimensions(content.data(), content.size(), pack.format, &pack.dims, &pack.ctx);
+                     tenpack_guess_format(begin, file_size, &pack.format, &pack.ctx);
+                     tenpack_guess_dimensions(begin, file_size, pack.format, &pack.dims, &pack.ctx);
 
-                        auto tensor = allocate(pack);
-                        tenpack_unpack(content.data(), content.size(), pack.format, &pack.dims, tensor.data, &pack.ctx);
-                        arrays[idx] = std::move(tensor.numpy);
-                        packs[idx] = std::move(pack);
-                    }
-                };
+                     auto tensor = allocate(pack);
+                     arrays[idx] = std::move(tensor.numpy);
+                     packs[idx] = std::move(pack);
+                     tensors[idx] = tensor.data;
+                     files_sizes[idx] = file_size;
+                     fds[idx] = fd;
+                     munmap((void*)begin, file_size);
+                 }
 
-                for (size_t idx = 0; idx < threads_count - 1; ++idx)
-                    threads[idx] = std::thread(call, idx * batch_size, batch_size);
-                threads[threads_count - 1] = std::thread(call,
-                                                         (threads_count - 1) * batch_size,
-                                                         paths.size() - (threads_count - 1) * batch_size);
+                 auto call = [&](size_t pos, size_t batch) {
+                     for (size_t idx = pos; idx < pos + batch; ++idx) {
+                         auto begin = mmap(nullptr, files_sizes[idx], PROT_READ, MAP_PRIVATE, fds[idx], 0);
+                         tenpack_unpack(begin,
+                                        files_sizes[idx],
+                                        packs[idx].format,
+                                        &packs[idx].dims,
+                                        tensors[idx],
+                                        &packs[idx].ctx);
+                     }
+                 };
 
-                for (size_t idx = 0; idx < threads_count; ++idx)
-                    threads[idx].join();
-                return std::make_pair(packs, arrays);
-            })
+                 for (size_t idx = 0; idx < threads_count - 1; ++idx)
+                     threads[idx] = std::thread(call, idx * batch_size, batch_size);
+                 threads[threads_count - 1] =
+                     std::thread(call, (threads_count - 1) * batch_size, size - (threads_count - 1) * batch_size);
+
+                 for (size_t idx = 0; idx < threads_count; ++idx)
+                     threads[idx].join();
+
+                 py::tuple tuple1;
+                 py::tuple tuple2;
+                 for (size_t i = 0; i < size; ++i) {
+                     tuple1 = tuple1 + py::make_tuple(packs[i]);
+                     tuple2 = tuple2 + py::make_tuple(arrays[i]);
+                 }
+                 return std::make_pair(tuple1, tuple2);
+             })
         .def("ctx_free", [](py_tenpack_t& self) {
             tenpack_context_free(self.ctx);
             return true;
