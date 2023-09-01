@@ -144,13 +144,13 @@ PYBIND11_MODULE(tenpack_module, t) {
                  threads_count = std::min(size_t(threads_count), size_t(size));
                  size_t batch_size = size / threads_count;
 
-                 std::thread threads[threads_count];
+                 std::thread threads[threads_count] {};
                  py::tuple arrays_tuple(size);
                  py::tuple packs_tuple(size);
-                 py_tenpack_t packs[size];
-                 void* tensors[size];
-                 size_t files_sizes[size];
-                 int fds[size];
+                 void** tensors = new void*[size];
+                 py_tenpack_t* packs = new py_tenpack_t[size];
+                 size_t* files_sizes = new size_t[size];
+                 int* fds = new int[size];
 
                  for (size_t idx = 0; idx < size; ++idx) {
                      py_tenpack_t pack;
@@ -194,8 +194,8 @@ PYBIND11_MODULE(tenpack_module, t) {
                  for (size_t idx = 0; idx < threads_count; ++idx)
                      threads[idx].join();
 
-                 for (size_t i = 0; i < size; ++i)
-                     packs_tuple = packs_tuple + py::make_tuple(std::move(packs[i]));
+                 for (size_t idx = 0; idx < size; ++idx)
+                     packs_tuple[idx] = std::move(packs[idx]);
                  return std::make_pair(packs_tuple, arrays_tuple);
              })
         .def("ctx_free", [](py_tenpack_t& self) {
