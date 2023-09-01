@@ -5,6 +5,9 @@
 
 #include <filesystem>
 #include <thread>
+#include <exception>
+#include <string>
+#include <vector>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -20,8 +23,8 @@ struct py_context_t {
     tenpack_ctx_t native_ = nullptr;
 
     py_context_t() = default;
-    py_context_t(py_context_t&& other) { std::swap(native_, other.native_); }
-    py_context_t& operator=(py_context_t&& other) {
+    py_context_t(py_context_t&& other) noexcept{ std::swap(native_, other.native_); }
+    py_context_t& operator=(py_context_t&& other) noexcept{
         std::swap(native_, other.native_);
         return *this;
     }
@@ -44,6 +47,8 @@ enum class media_kind_t {
     video_k,
     other_k,
 };
+
+static std::vector<py_context_t> contexts;
 
 media_kind_t media_kind(tenpack_format_t fmt) {
     switch (fmt) {
@@ -124,7 +129,7 @@ py_pack_t py_pack(tenpack_shape_t const& shape, media_kind_t kind) {
 
 static tenpack_format_t api_format(std::string_view data) {
 
-    std::vector<py_context_t> contexts;
+    
     if (contexts.empty())
         contexts.emplace_back(py_context_t {});
 
@@ -138,7 +143,7 @@ static tenpack_format_t api_format(std::string_view data) {
 
 static tenpack_shape_t api_shape(std::string_view data) {
 
-    std::vector<py_context_t> contexts;
+    
     if (contexts.empty())
         contexts.emplace_back(py_context_t {});
 
@@ -156,7 +161,7 @@ static tenpack_shape_t api_shape(std::string_view data) {
 
 static py_pack_t api_unpack(std::string_view data) {
 
-    std::vector<py_context_t> contexts;
+    
     if (contexts.empty())
         contexts.emplace_back(py_context_t {});
 
@@ -179,9 +184,7 @@ static py_pack_t api_unpack(std::string_view data) {
 static py::tuple api_unpack_paths(std::vector<std::string> const& paths, std::size_t threads_count) {
     std::size_t size = paths.size();
     py::tuple results(size);
-    std::vector<py_context_t> contexts;
-
-    PyEval_ReleaseLock();
+    py::gil_scoped_release release;
 
     if (!threads_count) {
         std::size_t min_images_per_thread = 10;
@@ -236,18 +239,18 @@ static py::tuple api_unpack_paths(std::vector<std::string> const& paths, std::si
                 throw std::invalid_argument("Couldn't guess extract shape!");
             }
 
-            PyEval_AcquireLock();
+            py::gil_scoped_acquire acquire;
             py_pack_t pack = py_pack(shape, media_kind(format));
-            PyEval_ReleaseLock();
+            py::gil_scoped_release release;
 
             tenpack_unpack(data.data(), data.size(), format, &shape, pack.data, &ctx);
             pack.format = format;
             pack.shape = shape;
             release_mapping();
 
-            PyEval_AcquireLock();
+            py::gil_scoped_acquire acquire2;
             results[image_idx] = pack;
-            PyEval_ReleaseLock();
+            py::gil_scoped_release release2;
         }
     };
 
@@ -258,7 +261,7 @@ static py::tuple api_unpack_paths(std::vector<std::string> const& paths, std::si
     for (std::thread& thread : threads)
         thread.join();
 
-    PyEval_AcquireLock();
+    py::gil_scoped_acquire acquire;
     return results;
 }
 
