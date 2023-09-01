@@ -9,7 +9,7 @@ enum colors {
     white = 0xFF,
 };
 
-void decode(std::string const& path, std::vector<uint8_t>& unpacked, tenpack_ctx_t ctx, tenpack_dimensions_t& dims) {
+void decode(std::string const& path, std::vector<uint8_t>& unpacked, tenpack_ctx_t ctx, tenpack_shape_t& dims) {
 
     // Read entire file
     std::ifstream file(path, std::ifstream::binary);
@@ -24,7 +24,7 @@ void decode(std::string const& path, std::vector<uint8_t>& unpacked, tenpack_ctx
         throw std::invalid_argument("Can't guess file format:" + path);
 
     // 2
-    if (!tenpack_guess_dimensions(input.data(), input.size(), format, &dims, &ctx))
+    if (!tenpack_guess_shape(input.data(), input.size(), format, &dims, &ctx))
         throw std::invalid_argument("Can't guess dimensions:" + path);
 
     // 3
@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
     // We are going to need temporary memory
     tenpack_ctx_t ctx = nullptr;
 
-    tenpack_dimensions_t dims;
+    tenpack_shape_t dims;
 
     std::vector<std::string> paths_white {//
                                           "assets/jpeg_white.jpg",

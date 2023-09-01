@@ -16,84 +16,253 @@
 
 namespace py = pybind11;
 
-struct py_tenpack_t {
-    tenpack_ctx_t ctx = nullptr;
-    tenpack_dimensions_t dims;
-    tenpack_format_t format;
+struct py_context_t {
+    tenpack_ctx_t native_ = nullptr;
+
+    py_context_t() = default;
+    py_context_t(py_context_t&& other) { std::swap(native_, other.native_); }
+    py_context_t& operator=(py_context_t&& other) {
+        std::swap(native_, other.native_);
+        return *this;
+    }
+    py_context_t(py_context_t const&) = delete;
+    py_context_t& operator=(py_context_t const&) = delete;
+    ~py_context_t() noexcept { tenpack_context_free(native_); }
 };
 
-struct py_tensor_t {
-    py::object numpy;
-    void* data;
+struct py_pack_t {
+    tenpack_format_t format = tenpack_format_unknown_k;
+    tenpack_shape_t shape = {0u, 0u, 0u, 0u, 0u, false};
+    py::object tensor = py::none();
+    void* data = nullptr;
 };
 
-int guess_media_type(tenpack_format_t fmt) {
-    if (fmt >= tenpack_bmp_k && fmt < tenpack_gif_k)
-        return 1;
-    else if (fmt >= tenpack_gif_k && fmt < tenpack_wav_k)
-        return 2;
-    else if (fmt >= tenpack_wav_k && fmt < tenpack_avi_k)
-        return 3;
-    else if (fmt >= tenpack_avi_k && fmt < tenpack_psd_k)
-        return 4;
-    else if (fmt >= tenpack_psd_k)
-        return 5;
+enum class media_kind_t {
+    image_k,
+    animation_k,
+    audio_k,
+    video_k,
+    other_k,
+};
 
-    return 0;
+media_kind_t media_kind(tenpack_format_t fmt) {
+    switch (fmt) {
+    case tenpack_bmp_k: return media_kind_t::image_k;
+    case tenpack_jxr_k: return media_kind_t::image_k;
+    case tenpack_png_k: return media_kind_t::image_k;
+    case tenpack_ico_k: return media_kind_t::image_k;
+    case tenpack_jpeg_k: return media_kind_t::image_k;
+    case tenpack_jpeg2000_k: return media_kind_t::image_k;
+    case tenpack_gif_k: return media_kind_t::animation_k;
+    case tenpack_wav_k: return media_kind_t::audio_k;
+    case tenpack_avi_k: return media_kind_t::video_k;
+    case tenpack_mpeg4_k: return media_kind_t::video_k;
+    default: return media_kind_t::other_k;
+    }
 }
 
 template <typename scalar_at>
-py_tensor_t py_tensor(std::initializer_list<std::size_t> dims) {
-    py::array_t<scalar_at> numpy(dims);
-    void* data = numpy.request().ptr;
-    return {py::object(std::move(numpy)), data};
+py_pack_t py_pack(std::initializer_list<std::size_t> shape) {
+    auto tensor = py::array_t<scalar_at>(shape);
+    py_pack_t result;
+    result.data = tensor.request().ptr;
+    result.tensor = std::move(tensor);
+    return result;
 }
 
-py_tensor_t allocate(py_tenpack_t const& tp) {
-    int expr = tp.dims.bytes_per_channel;
-    if (tp.dims.is_signed)
-        expr *= -1;
+py_pack_t py_pack(tenpack_shape_t const& shape, media_kind_t kind) {
 
-    int type = guess_media_type(tp.format);
-
-    switch (type) {
-    case 1: {
-        switch (expr) {
-        case 1: return py_tensor<uint8_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 2: return py_tensor<uint16_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 4: return py_tensor<uint32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 8: return py_tensor<uint64_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -1: return py_tensor<int8_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -2: return py_tensor<int16_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -4: return py_tensor<int32_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -8: return py_tensor<int64_t>({tp.dims.height, tp.dims.width, tp.dims.channels});
+    switch (kind) {
+    case media_kind_t::image_k: {
+        if (!shape.is_signed)
+            switch (shape.bytes_per_channel) {
+            case 1: return py_pack<uint8_t>({shape.height, shape.width, shape.channels});
+            case 2: return py_pack<uint16_t>({shape.height, shape.width, shape.channels});
+            case 4: return py_pack<uint32_t>({shape.height, shape.width, shape.channels});
+            case 8: return py_pack<uint64_t>({shape.height, shape.width, shape.channels});
+            default: return {};
+            }
+        else
+            switch (shape.bytes_per_channel) {
+            case 1: return py_pack<int8_t>({shape.height, shape.width, shape.channels});
+            case 2: return py_pack<int16_t>({shape.height, shape.width, shape.channels});
+            case 4: return py_pack<int32_t>({shape.height, shape.width, shape.channels});
+            case 8: return py_pack<int64_t>({shape.height, shape.width, shape.channels});
+            default: return {};
+            }
+    }
+    case media_kind_t::animation_k: {
+        if (!shape.is_signed)
+            switch (shape.bytes_per_channel) {
+            case 1: return py_pack<uint8_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 2: return py_pack<uint16_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 4: return py_pack<uint32_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 8: return py_pack<uint64_t>({shape.frames, shape.height, shape.width, shape.channels});
+            default: return {};
+            }
+        else
+            switch (shape.bytes_per_channel) {
+            case 1: return py_pack<int8_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 2: return py_pack<int16_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 4: return py_pack<int32_t>({shape.frames, shape.height, shape.width, shape.channels});
+            case 8: return py_pack<int64_t>({shape.frames, shape.height, shape.width, shape.channels});
+            default: return {};
+            }
+    }
+    case media_kind_t::audio_k: {
+        switch (shape.bytes_per_channel) {
+        case 1: return py_pack<int8_t>({shape.width});
+        case 2: return py_pack<int16_t>({shape.width});
+        case 4: return py_pack<int32_t>({shape.width});
+        case 8: return py_pack<int64_t>({shape.width});
+        default: return {};
         }
     }
-    case 2: {
-        switch (expr) {
-        case 1: return py_tensor<uint8_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 2: return py_tensor<uint16_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 4: return py_tensor<uint32_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case 8: return py_tensor<uint64_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -1: return py_tensor<int8_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -2: return py_tensor<int16_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -4: return py_tensor<int32_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        case -8: return py_tensor<int64_t>({tp.dims.frames, tp.dims.height, tp.dims.width, tp.dims.channels});
-        }
+    default: return {};
     }
-    case 3: {
-        switch (std::abs(expr)) {
-        case 1: return py_tensor<int8_t>({tp.dims.width});
-        case 2: return py_tensor<int16_t>({tp.dims.width});
-        case 4: return py_tensor<int32_t>({tp.dims.width});
-        case 8: return py_tensor<int64_t>({tp.dims.width});
-        }
-    }
-    }
-    return {py::none {}, nullptr};
 }
 
-PYBIND11_MODULE(tenpack_module, t) {
+static tenpack_format_t api_format(std::string_view data) {
+
+    std::vector<py_context_t> contexts;
+    if (contexts.empty())
+        contexts.emplace_back(py_context_t {});
+
+    tenpack_ctx_t& ctx = contexts.back().native_;
+    tenpack_format_t format = tenpack_format_unknown_k;
+    if (!tenpack_guess_format(data.data(), data.size(), &format, &ctx))
+        throw std::invalid_argument("Couldn't guess format!");
+
+    return format;
+}
+
+static tenpack_shape_t api_shape(std::string_view data) {
+
+    std::vector<py_context_t> contexts;
+    if (contexts.empty())
+        contexts.emplace_back(py_context_t {});
+
+    tenpack_ctx_t& ctx = contexts.back().native_;
+    tenpack_format_t format = tenpack_format_unknown_k;
+    if (!tenpack_guess_format(data.data(), data.size(), &format, &ctx))
+        throw std::invalid_argument("Couldn't guess format!");
+
+    tenpack_shape_t shape {};
+    if (!tenpack_guess_shape(data.data(), data.size(), format, &shape, &ctx))
+        throw std::invalid_argument("Couldn't guess extract shape!");
+
+    return shape;
+}
+
+static py_pack_t api_unpack(std::string_view data) {
+
+    std::vector<py_context_t> contexts;
+    if (contexts.empty())
+        contexts.emplace_back(py_context_t {});
+
+    tenpack_ctx_t& ctx = contexts.back().native_;
+    tenpack_format_t format = tenpack_format_unknown_k;
+    if (!tenpack_guess_format(data.data(), data.size(), &format, &ctx))
+        throw std::invalid_argument("Couldn't guess format!");
+
+    tenpack_shape_t shape {};
+    if (!tenpack_guess_shape(data.data(), data.size(), format, &shape, &ctx))
+        throw std::invalid_argument("Couldn't guess extract shape!");
+
+    py_pack_t pack = py_pack(shape, media_kind(format));
+    tenpack_unpack(data.data(), data.size(), format, &shape, pack.data, &ctx);
+    pack.format = format;
+    pack.shape = shape;
+    return pack;
+}
+
+static py::tuple api_unpack_paths(std::vector<std::string> const& paths, std::size_t threads_count) {
+    std::size_t size = paths.size();
+    py::tuple results(size);
+    std::vector<py_context_t> contexts;
+
+    PyEval_ReleaseLock();
+
+    if (!threads_count) {
+        std::size_t min_images_per_thread = 10;
+        threads_count = size + (min_images_per_thread - 1) / min_images_per_thread;
+    }
+
+    // Prepare contexts
+    while (contexts.size() < threads_count)
+        contexts.emplace_back(py_context_t {});
+
+    std::size_t batch_size = size / threads_count;
+    auto job = [&](std::size_t thread_idx) {
+        std::size_t batch_start = batch_size * thread_idx;
+        for (std::size_t image_idx = batch_start; image_idx != batch_start + batch_size; ++image_idx) {
+            std::string const& path = paths[image_idx];
+
+            // Obtain descriptor
+            int descriptor = open(path.c_str(), O_RDONLY);
+            if (descriptor < 0)
+                throw std::runtime_error(std::strerror(errno));
+
+            // Estimate the file size
+            struct stat file_stat;
+            int fstat_status = fstat(descriptor, &file_stat);
+            if (fstat_status < 0) {
+                ::close(descriptor);
+                throw std::runtime_error(std::strerror(errno));
+            }
+
+            // Map the entire file
+            char const* file = (char const*)mmap(NULL, file_stat.st_size, PROT_READ, MAP_SHARED, descriptor, 0);
+            if (file == MAP_FAILED) {
+                ::close(descriptor);
+                throw std::runtime_error(std::strerror(errno));
+            }
+            auto release_mapping = [&] {
+                munmap((void*)file, file_stat.st_size);
+                ::close(descriptor);
+            };
+
+            std::string_view data {file, static_cast<std::size_t>(file_stat.st_size)};
+            tenpack_ctx_t& ctx = contexts[thread_idx].native_;
+            tenpack_format_t format = tenpack_format_unknown_k;
+            if (!tenpack_guess_format(data.data(), data.size(), &format, &ctx)) {
+                release_mapping();
+                throw std::invalid_argument("Couldn't guess format!");
+            }
+
+            tenpack_shape_t shape {};
+            if (!tenpack_guess_shape(data.data(), data.size(), format, &shape, &ctx)) {
+                release_mapping();
+                throw std::invalid_argument("Couldn't guess extract shape!");
+            }
+
+            PyEval_AcquireLock();
+            py_pack_t pack = py_pack(shape, media_kind(format));
+            PyEval_ReleaseLock();
+
+            tenpack_unpack(data.data(), data.size(), format, &shape, pack.data, &ctx);
+            pack.format = format;
+            pack.shape = shape;
+            release_mapping();
+
+            PyEval_AcquireLock();
+            results[image_idx] = pack;
+            PyEval_ReleaseLock();
+        }
+    };
+
+    std::vector<std::thread> threads;
+    for (std::size_t thread_idx = 1; thread_idx != threads_count; ++thread_idx)
+        threads.emplace_back([&, thread_idx = thread_idx]() { job(thread_idx); });
+    job(0);
+    for (std::thread& thread : threads)
+        thread.join();
+
+    PyEval_AcquireLock();
+    return results;
+}
+
+PYBIND11_MODULE(tenpack, t) {
     t.doc() =
         "Python bindings for TenPack multimedia unpacking library.\n"
         "Supports:\n"
@@ -102,7 +271,7 @@ PYBIND11_MODULE(tenpack_module, t) {
         "> Get unpacked file in tensor.\n"
         "---------------------------------------------\n";
 
-    py::enum_<tenpack_format_t>(t, "format", "File format enumeration")
+    py::enum_<tenpack_format_t>(t, "Format", "File format enumeration")
         .value("bmp", tenpack_bmp_k, "File format bmp")
         .value("gif", tenpack_gif_k, "File format gif")
         .value("jxr", tenpack_jxr_k, "File format jxr")
@@ -117,89 +286,21 @@ PYBIND11_MODULE(tenpack_module, t) {
         .value("mpeg4", tenpack_mpeg4_k, "File format mpeg4")
         .export_values();
 
-    py::class_<tenpack_dimensions_t>(t, "tenpack_dimensions")
-        .def(py::init<>())
-        .def_readwrite("frames", &tenpack_dimensions_t::frames)
-        .def_readwrite("width", &tenpack_dimensions_t::width)
-        .def_readwrite("height", &tenpack_dimensions_t::height)
-        .def_readwrite("channels", &tenpack_dimensions_t::channels)
-        .def_readwrite("bytes_per_channel", &tenpack_dimensions_t::bytes_per_channel)
-        .def_readwrite("is_signed", &tenpack_dimensions_t::is_signed);
+    py::class_<tenpack_shape_t>(t, "Shape")
+        .def_readonly("frames", &tenpack_shape_t::frames)
+        .def_readonly("width", &tenpack_shape_t::width)
+        .def_readonly("height", &tenpack_shape_t::height)
+        .def_readonly("channels", &tenpack_shape_t::channels)
+        .def_readonly("bytes_per_channel", &tenpack_shape_t::bytes_per_channel)
+        .def_readonly("is_signed", &tenpack_shape_t::is_signed);
 
-    py::class_<py_tenpack_t>(t, "tenpack")
-        .def(py::init<>())
-        .def_readwrite("dims", &py_tenpack_t::dims)
-        .def_readwrite("format", &py_tenpack_t::format)
-        .def("unpack",
-             [](py_tenpack_t& self, std::string_view data) -> py::object {
-                 tenpack_guess_format(data.data(), data.size(), &self.format, &self.ctx);
-                 tenpack_guess_dimensions(data.data(), data.size(), self.format, &self.dims, &self.ctx);
-                 auto tensor = allocate(self);
-                 tenpack_unpack(data.data(), data.size(), self.format, &self.dims, tensor.data, &self.ctx);
-                 return std::move(tensor.numpy);
-             })
-        .def("unpack_many",
-             [](py_tenpack_t& self, py::list paths, Py_ssize_t threads_count) {
-                 size_t size = paths.size();
-                 threads_count = std::min(size_t(threads_count), size_t(size));
-                 size_t batch_size = size / threads_count;
+    py::class_<py_pack_t>(t, "Pack")
+        .def_readonly("format", &py_pack_t::format)
+        .def_readonly("shape", &py_pack_t::shape)
+        .def_readonly("tensor", &py_pack_t::tensor);
 
-                 std::thread threads[threads_count] {};
-                 py::tuple arrays_tuple(size);
-                 py::tuple packs_tuple(size);
-                 void** tensors = new void*[size];
-                 py_tenpack_t* packs = new py_tenpack_t[size];
-                 size_t* files_sizes = new size_t[size];
-                 int* fds = new int[size];
-
-                 for (size_t idx = 0; idx < size; ++idx) {
-                     py_tenpack_t pack;
-
-                     auto path = py::cast<std::string_view>(paths[idx]);
-                     auto fd = open(path.data(), O_RDONLY);
-                     size_t file_size = std::filesystem::file_size(std::filesystem::path(path.data()));
-                     auto begin = mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-
-                     tenpack_guess_format(begin, file_size, &pack.format, &pack.ctx);
-                     tenpack_guess_dimensions(begin, file_size, pack.format, &pack.dims, &pack.ctx);
-
-                     auto tensor = allocate(pack);
-                     arrays_tuple[idx] = std::move(tensor.numpy);
-                     packs[idx] = std::move(pack);
-                     tensors[idx] = tensor.data;
-                     files_sizes[idx] = file_size;
-                     fds[idx] = fd;
-                     munmap((void*)begin, file_size);
-                 }
-
-                 auto call = [&](size_t pos, size_t batch) {
-                     for (size_t idx = pos; idx < pos + batch; ++idx) {
-                         auto begin = mmap(nullptr, files_sizes[idx], PROT_READ, MAP_PRIVATE, fds[idx], 0);
-                         tenpack_unpack(begin,
-                                        files_sizes[idx],
-                                        packs[idx].format,
-                                        &packs[idx].dims,
-                                        tensors[idx],
-                                        &packs[idx].ctx);
-                         munmap((void*)begin, files_sizes[idx]);
-                         close(fds[idx]);
-                     }
-                 };
-
-                 for (size_t idx = 0; idx < threads_count - 1; ++idx)
-                     threads[idx] = std::thread(call, idx * batch_size, batch_size);
-                 threads[threads_count - 1] =
-                     std::thread(call, (threads_count - 1) * batch_size, size - (threads_count - 1) * batch_size);
-
-                 for (size_t idx = 0; idx < threads_count; ++idx)
-                     threads[idx].join();
-
-                 for (size_t idx = 0; idx < size; ++idx)
-                     packs_tuple[idx] = std::move(packs[idx]);
-                 return std::make_pair(packs_tuple, arrays_tuple);
-             })
-        .def("ctx_free", [](py_tenpack_t& self) {
-            tenpack_context_free(self.ctx);
-            return true;
-        });
+    t.def("format", &api_format);
+    t.def("shape", &api_shape);
+    t.def("unpack", &api_unpack);
+    t.def("unpack_paths", &api_unpack_paths, py::arg("paths"), py::arg("threads") = 0);
 }

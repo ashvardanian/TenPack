@@ -80,7 +80,7 @@ class ctx_t {
     }
 };
 
-size_t size_bytes(tenpack_dimensions_t const& dims, tenpack_format_t const format) {
+size_t size_bytes(tenpack_shape_t const& dims, tenpack_format_t const format) {
     if (format == tenpack_wav_k)
         return dims.frames * dims.width;
     return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
@@ -122,14 +122,14 @@ bool tenpack_guess_format( //
     return false;
 }
 
-bool tenpack_guess_dimensions( //
+bool tenpack_guess_shape( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_dimensions_t* dimensions,
+    tenpack_shape_t* dimensions,
     tenpack_ctx_t* context) {
 
-    tenpack_dimensions_t& dims = *dimensions;
+    tenpack_shape_t& dims = *dimensions;
     ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
     if (!ctx_ptr)
         ctx_ptr = new ctx_t();
@@ -235,11 +235,11 @@ bool tenpack_unpack( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_dimensions_t const* output_dimensions,
+    tenpack_shape_t const* output_dimensions,
     void* output,
     tenpack_ctx_t* context) {
 
-    tenpack_dimensions_t const& dims = *output_dimensions;
+    tenpack_shape_t const& dims = *output_dimensions;
     ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
     if (!ctx_ptr)
         ctx_ptr = new ctx_t();
@@ -340,11 +340,7 @@ bool tenpack_unpack( //
     }
 }
 
-bool tenpack_context_free(tenpack_ctx_t ctx) {
-    if (ctx) {
+void tenpack_context_free(tenpack_ctx_t ctx) {
+    if (ctx)
         delete reinterpret_cast<ctx_t*>(ctx);
-        return true;
-    }
-    else
-        return false;
 }

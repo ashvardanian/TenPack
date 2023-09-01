@@ -9,7 +9,7 @@
         },
         {
             "label": "Build: Module",
-            "command": "cmake -DCMAKE_BUILD_TYPE=Release -DTENPACK_BUILD_PYTHON=1 && make tenpack_module -j --silent",
+            "command": "cmake -DCMAKE_BUILD_TYPE=Release -DTENPACK_BUILD_PYTHON=1 && make tenpack -j --silent",
             "args": [],
             "type": "shell"
         }

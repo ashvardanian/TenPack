@@ -1,15 +1,16 @@
 import os
 import pathlib
-import numpy as np
+from typing import Tuple
 
 import cv2
 import wave
 import imageio
 from PIL import Image
+import numpy as np
 
-import tenpack_module
+import tenpack
 
-relative_path = '~/samples'
+relative_path = "~/samples"
 
 
 def get_paths() -> list:
@@ -18,18 +19,18 @@ def get_paths() -> list:
 
 
 def export(tenpack, buffer):
-    if tenpack.format == tenpack_module.format.png:
+    if tenpack.format == tenpack.format.png:
         image = Image.fromarray(buffer)
-        image.save('output.png', 'PNG')
-    elif tenpack.format == tenpack_module.format.jpeg:
+        image.save("output.png", "PNG")
+    elif tenpack.format == tenpack.format.jpeg:
         if tenpack.dims.channels == 4:
-            raise Exception('Unsupported!')
+            raise Exception("Unsupported!")
         else:
-            imageio.imwrite('output.jpg', buffer)
-    elif tenpack.format == tenpack_module.format.gif:
-        imageio.mimsave('output.gif', buffer, format='GIF', loop=0, duration=0.01)
-    elif tenpack.format == tenpack_module.format.wav:
-        with wave.open('output.wav', 'w') as wav_file:
+            imageio.imwrite("output.jpg", buffer)
+    elif tenpack.format == tenpack.format.gif:
+        imageio.mimsave("output.gif", buffer, format="GIF", loop=0, duration=0.01)
+    elif tenpack.format == tenpack.format.wav:
+        with wave.open("output.wav", "w") as wav_file:
             wav_file.setnchannels(tenpack.dims.channels)
             wav_file.setsampwidth(tenpack.dims.bytes_per_channel)
             wav_file.setframerate(tenpack.dims.height)
@@ -49,19 +50,19 @@ def open_and_reshape(lhs, rhs, tenpack):
 
 
 def compare_image_content(lhs, rhs, tenpack):
-    if tenpack.format == tenpack_module.format.png:
+    if tenpack.format == tenpack.format.png:
         [image1, image2] = open_and_reshape(lhs, rhs, tenpack)
         assert np.array_equal(image1, image2)
-    elif tenpack.format == tenpack_module.format.jpeg:
+    elif tenpack.format == tenpack.format.jpeg:
         [image1, image2] = open_and_reshape(lhs, rhs, tenpack)
         tolerance = 80
         assert np.all(np.isclose(image1, image2, tolerance, tolerance))
-    elif tenpack.format == tenpack_module.format.wav:
-        with wave.open(lhs, 'rb') as wav1, wave.open(rhs, 'rb') as wav2:
+    elif tenpack.format == tenpack.format.wav:
+        with wave.open(lhs, "rb") as wav1, wave.open(rhs, "rb") as wav2:
             frames1 = wav1.readframes(wav1.getnframes())
             frames2 = wav2.readframes(wav2.getnframes())
             assert frames1 == frames2
-    elif tenpack.format == tenpack_module.format.gif:
+    elif tenpack.format == tenpack.format.gif:
         gif1 = imageio.mimread(lhs)
         gif2 = imageio.mimread(rhs)
         assert len(gif1) == len(gif2)
@@ -87,14 +88,14 @@ def compare_image_content(lhs, rhs, tenpack):
 
 
 def test_equality():
-    tenpack = tenpack_module.tenpack()
+    tenpack = tenpack.tenpack()
     paths = get_paths()
 
     for path in paths:
-        output_file = 'output' + pathlib.Path(path).suffix
-        with open(path, 'rb') as file:
+        output_file = "output" + pathlib.Path(path).suffix
+        with open(path, "rb") as file:
             file_data = bytes(file.read())
-        output_data = np.array(tenpack.unpack(file_data))
+        output_data: np.ndarray = np.array(tenpack.unpack(file_data))
         assert len(output_data) != 0
         assert export(tenpack, output_data) == True
         compare_image_content(path, output_file, tenpack)
@@ -102,17 +103,18 @@ def test_equality():
 
 
 def test_equality_many(threads=1):
-    tenpack = tenpack_module.tenpack()
+    tenpack = tenpack.tenpack()
     paths = get_paths()
-    pack_tuples, array_tuples = tenpack.unpack_many(paths, 1)
+    array_tuples: Tuple[np.ndarray] = tenpack.unpack_paths(paths, threads)
     for i in range(len(paths)):
-        output_file = 'output' + pathlib.Path(paths[i]).suffix
+        array_tuples[i].shape
+        output_file = "output" + pathlib.Path(paths[i]).suffix
         assert export(pack_tuples[i], np.array(array_tuples[i])) == True
         compare_image_content(paths[i], output_file, tenpack)
         os.remove(output_file)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_equality()
     test_equality_many()
     test_equality_many(2)

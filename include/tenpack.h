@@ -1,12 +1,6 @@
 /**
  * @file tenpack.h
- * @author your name (you@domain.com)
- * @brief
- * @version 0.1
- * @date 2022-08-02
- *
- * @copyright Copyright (c) 2022
- *
+ * @brief ABI-stable interface for Tensor-Packing.
  */
 #pragma once
 
@@ -19,7 +13,8 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-enum tenpack_format_t {
+typedef enum tenpack_format_t {
+    tenpack_format_unknown_k,
 
     // Image
     tenpack_bmp_k,
@@ -42,28 +37,28 @@ enum tenpack_format_t {
     // Other
     tenpack_psd_k,
     tenpack_dwg_k,
-};
+} tenpack_format_t;
 
-struct tenpack_dimensions_t {
+typedef struct tenpack_shape_t {
     size_t frames;
     size_t width;
     size_t height;
     size_t channels;
     size_t bytes_per_channel;
-    bool is_signed = false;
-};
+    bool is_signed;
+} tenpack_shape_t;
 
 typedef void const* tenpack_input_t;
 typedef void* tenpack_ctx_t;
 
-bool tenpack_context_free(tenpack_ctx_t);
+void tenpack_context_free(tenpack_ctx_t);
 
 /**
  * @brief Guesses the format of binary data just by comparing various binary signatures.
  *
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
- * @param[inout] format  Object, where the guessed fromat will be written.
+ * @param[inout] format  Object, where the guessed format will be written.
  * @param[inout] context A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
@@ -81,20 +76,20 @@ bool tenpack_guess_format( //
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
  * @param[in] format     The format of data in `[data, data+len)`.
- * @param[inout] dims     Output dimensions of image.
- *                       > For JPEG and PNG, 3 dims: width, height, channels.
- *                       > For GIF, 3 dims: width, height, frames.
- *                       > For AVI, 4 dims: width, height, channels, frames.
+ * @param[inout] shape   Output dimensions of image.
+ *                       > For JPEG and PNG, 3 dimensions: width, height, channels.
+ *                       > For GIF, 3 dimensions: width, height, frames.
+ *                       > For AVI, 4 dimensions: width, height, channels, frames.
  * @param[inout] context A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
  */
-bool tenpack_guess_dimensions( //
+bool tenpack_guess_shape( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_dimensions_t* dims,
+    tenpack_shape_t* shape,
     tenpack_ctx_t* context);
 
 /**
@@ -114,7 +109,7 @@ bool tenpack_unpack( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_dimensions_t const* output_dimensions,
+    tenpack_shape_t const* output_dimensions,
     void* output,
     tenpack_ctx_t* context);
 
