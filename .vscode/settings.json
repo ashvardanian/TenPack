@@ -1,6 +1,5 @@
 {
     "python.formatting.blackArgs": [
-        "--skip-string-normalization",
         "--line-length",
         "100"
     ],

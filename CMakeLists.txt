@@ -59,7 +59,7 @@ endif()
 
 if(${TENPACK_BUILD_PYTHON})
     file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/tenpack)
-    pybind11_add_module(tenpack_module MODULE python/pybind.cpp)
+    pybind11_add_module(tenpack_module MODULE python/lib.cpp)
     target_link_libraries(tenpack_module PRIVATE tenpack ${TARGET_LIBRARIES} ${PYTHON_LIBRARIES})
     target_include_directories(tenpack_module PUBLIC python/)
 endif()
