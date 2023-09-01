@@ -106,9 +106,10 @@ def test_equality_many(threads=1):
     paths = get_paths()
     pack_tuples, array_tuples = tenpack.unpack_many(paths, 1)
     for i in range(len(paths)):
+        output_file = 'output' + pathlib.Path(paths[i]).suffix
         assert export(pack_tuples[i], np.array(array_tuples[i])) == True
-        compare_image_content(paths[i], 'output.jpg', tenpack)
-        os.remove('output.jpg')
+        compare_image_content(paths[i], output_file, tenpack)
+        os.remove(output_file)
 
 
 if __name__ == '__main__':
