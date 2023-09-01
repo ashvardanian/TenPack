@@ -104,10 +104,9 @@ def test_equality():
 def test_equality_many(threads=1):
     tenpack = tenpack_module.tenpack()
     paths = get_paths()
-    paths = paths[:-1]
-    pack_tuples, array_tuples = tenpack.unpack_many(paths, threads)
+    pack_tuples, array_tuples = tenpack.unpack_many(paths, 1)
     for i in range(len(paths)):
-        assert export(pack_tuples[i], array_tuples[i]) == True
+        assert export(pack_tuples[i], np.array(array_tuples[i])) == True
         compare_image_content(paths[i], 'output.jpg', tenpack)
         os.remove('output.jpg')
 
