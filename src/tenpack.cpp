@@ -333,7 +333,7 @@ bool tenpack_unpack( //
         bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
         if (!success)
             return false;
-        return drwav_read_pcm_frames(ctx_ptr->wav(), dims.width, output) == dims.width;
+        return drwav_read_pcm_frames(ctx_ptr->wav(), dims.frames, output) == dims.frames;
     }
 
     default: return false;
