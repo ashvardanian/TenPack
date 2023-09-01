@@ -218,7 +218,7 @@ bool tenpack_guess_dimensions( //
 
         bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
 
-        dims.bytes_per_channel = ctx_ptr->wav()->bitsPerSample / 8;
+        dims.bytes_per_channel = ctx_ptr->wav()->bitsPerSample == 12 ? 2 : ctx_ptr->wav()->bitsPerSample / 8;
         dims.channels = ctx_ptr->wav()->channels;
         dims.frames = ctx_ptr->wav()->totalPCMFrameCount;
         dims.height = ctx_ptr->wav()->sampleRate;
