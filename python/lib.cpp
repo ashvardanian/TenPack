@@ -262,8 +262,8 @@ static py::tuple api_unpack_paths(std::vector<std::string> const& paths, std::si
     return results;
 }
 
-PYBIND11_MODULE(tenpack, t) {
-    t.doc() =
+PYBIND11_MODULE(tenpack, m) {
+    m.doc() =
         "Python bindings for TenPack multimedia unpacking library.\n"
         "Supports:\n"
         "> Guess file format from MetaData.\n"
@@ -271,7 +271,7 @@ PYBIND11_MODULE(tenpack, t) {
         "> Get unpacked file in tensor.\n"
         "---------------------------------------------\n";
 
-    py::enum_<tenpack_format_t>(t, "Format", "File format enumeration")
+    py::enum_<tenpack_format_t>(m, "Format")
         .value("bmp", tenpack_bmp_k, "File format bmp")
         .value("gif", tenpack_gif_k, "File format gif")
         .value("jxr", tenpack_jxr_k, "File format jxr")
@@ -286,7 +286,7 @@ PYBIND11_MODULE(tenpack, t) {
         .value("mpeg4", tenpack_mpeg4_k, "File format mpeg4")
         .export_values();
 
-    py::class_<tenpack_shape_t>(t, "Shape")
+    py::class_<tenpack_shape_t>(m, "Shape")
         .def_readonly("frames", &tenpack_shape_t::frames)
         .def_readonly("width", &tenpack_shape_t::width)
         .def_readonly("height", &tenpack_shape_t::height)
@@ -294,13 +294,13 @@ PYBIND11_MODULE(tenpack, t) {
         .def_readonly("bytes_per_channel", &tenpack_shape_t::bytes_per_channel)
         .def_readonly("is_signed", &tenpack_shape_t::is_signed);
 
-    py::class_<py_pack_t>(t, "Pack")
+    py::class_<py_pack_t>(m, "Pack")
         .def_readonly("format", &py_pack_t::format)
         .def_readonly("shape", &py_pack_t::shape)
         .def_readonly("tensor", &py_pack_t::tensor);
 
-    t.def("format", &api_format);
-    t.def("shape", &api_shape);
-    t.def("unpack", &api_unpack);
-    t.def("unpack_paths", &api_unpack_paths, py::arg("paths"), py::arg("threads") = 0);
+    m.def("format", &api_format);
+    m.def("shape", &api_shape);
+    m.def("unpack", &api_unpack);
+    m.def("unpack_paths", &api_unpack_paths, py::arg("paths"), py::arg("threads") = 0);
 }

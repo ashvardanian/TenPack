@@ -80,10 +80,10 @@ class ctx_t {
     }
 };
 
-size_t size_bytes(tenpack_shape_t const& dims, tenpack_format_t const format) {
+size_t size_bytes(tenpack_shape_t const& shape, tenpack_format_t const format) {
     if (format == tenpack_wav_k)
-        return dims.frames * dims.width;
-    return dims.frames * dims.channels * dims.width * dims.height * dims.bytes_per_channel;
+        return shape.frames * shape.width;
+    return shape.frames * shape.channels * shape.width * shape.height * shape.bytes_per_channel;
 }
 
 bool tenpack_guess_format( //
@@ -104,19 +104,8 @@ bool tenpack_guess_format( //
     if (*format = tenpack_psd_k; matches(prefix_psd_k, content, len)) return true;
     if (*format = tenpack_ico_k; matches(prefix_ico_k, content, len)) return true;
     if (*format = tenpack_dwg_k; matches(prefix_dwg_k, content, len)) return true;
-
-    if (matches(prefix_riff_k, content, len))
-    {
-        if (matches(prefix_wav_k, content + 8, len - 8))
-        {
-            *format = tenpack_wav_k; 
-             return true;
-        }
-    }
-
-    // MPEG4 format offset is 4  
+    if (matches(prefix_riff_k, content, len) && matches(prefix_wav_k, content + 8, len - 8)) { *format = tenpack_wav_k;  return true; }
     if (*format = tenpack_mpeg4_k; matches(prefix_mpeg4_k, content + 4, len - 4)) return true;
-
     // clang-format on
 
     return false;
@@ -129,7 +118,7 @@ bool tenpack_guess_shape( //
     tenpack_shape_t* dimensions,
     tenpack_ctx_t* context) {
 
-    tenpack_shape_t& dims = *dimensions;
+    tenpack_shape_t& shape = *dimensions;
     ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
     if (!ctx_ptr)
         ctx_ptr = new ctx_t();
@@ -155,39 +144,39 @@ bool tenpack_guess_shape( //
                            &jpeg_color_space) == 0;
         TJCS color_space = static_cast<TJCS>(jpeg_color_space);
         switch (color_space) {
-        case TJCS_GRAY: dims.channels = 1; break;
-        case TJCS_YCbCr: dims.channels = 3; break;
-        case TJCS_RGB: dims.channels = 3; break;
-        default: dims.channels = 3; break;
+        case TJCS_GRAY: shape.channels = 1; break;
+        case TJCS_YCbCr: shape.channels = 3; break;
+        case TJCS_RGB: shape.channels = 3; break;
+        default: shape.channels = 3; break;
         // ? Unsupported:
-        case TJCS_CMYK: dims.channels = 4; break;
-        case TJCS_YCCK: dims.channels = 4; break;
+        case TJCS_CMYK: shape.channels = 4; break;
+        case TJCS_YCCK: shape.channels = 4; break;
         }
 
-        dims.width = static_cast<size_t>(jpeg_width);
-        dims.height = static_cast<size_t>(jpeg_height);
-        dims.bytes_per_channel = 1;
-        dims.frames = 1;
+        shape.width = static_cast<size_t>(jpeg_width);
+        shape.height = static_cast<size_t>(jpeg_height);
+        shape.bytes_per_channel = 1;
+        shape.frames = 1;
         return success;
     }
 
     case tenpack_format_t::tenpack_png_k: {
         // Image header: https://libspng.org/docs/chunk/#spng_get_ihdr
-        spng_ihdr ihdr;
+        spng_ihdr image_header;
         spng_set_png_buffer(ctx_ptr->png(), data, len);
-        bool success = spng_get_ihdr(ctx_ptr->png(), &ihdr) == 0;
+        bool success = spng_get_ihdr(ctx_ptr->png(), &image_header) == 0;
 
-        dims.width = static_cast<size_t>(ihdr.width);
-        dims.height = static_cast<size_t>(ihdr.height);
-        dims.bytes_per_channel = ihdr.bit_depth / 8;
-        dims.frames = 1;
+        shape.width = static_cast<size_t>(image_header.width);
+        shape.height = static_cast<size_t>(image_header.height);
+        shape.bytes_per_channel = image_header.bit_depth / 8;
+        shape.frames = 1;
 
-        switch (ihdr.color_type) {
-        case SPNG_COLOR_TYPE_GRAYSCALE: dims.channels = 1; break;
-        case SPNG_COLOR_TYPE_INDEXED: dims.channels = 1; break;
-        case SPNG_COLOR_TYPE_GRAYSCALE_ALPHA: dims.channels = 2; break;
-        case SPNG_COLOR_TYPE_TRUECOLOR: dims.channels = 3; break;
-        case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA: dims.channels = 4; break;
+        switch (image_header.color_type) {
+        case SPNG_COLOR_TYPE_GRAYSCALE: shape.channels = 1; break;
+        case SPNG_COLOR_TYPE_INDEXED: shape.channels = 1; break;
+        case SPNG_COLOR_TYPE_GRAYSCALE_ALPHA: shape.channels = 2; break;
+        case SPNG_COLOR_TYPE_TRUECOLOR: shape.channels = 3; break;
+        case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA: shape.channels = 4; break;
         default: return false;
         }
 
@@ -197,19 +186,16 @@ bool tenpack_guess_shape( //
     case tenpack_format_t::tenpack_gif_k: {
 
         int* delays = nullptr;
-        int comp, req_comp = 3;
-        dims.bytes_per_channel = 1;
-        dims.channels = 3;
-        auto result = stbi_load_gif_from_memory( //
-            (stbi_uc*)data,
-            len,
-            &delays,
-            (int*)&dims.width,
-            (int*)&dims.height,
-            (int*)&dims.frames,
-            &comp,
-            req_comp);
-        dims.channels = 3;
+        int comp = 0, req_comp = 3;
+        int width = 0, height = 0, frames = 0;
+        auto result =
+            stbi_load_gif_from_memory((stbi_uc*)data, len, &delays, &width, &height, &frames, &comp, req_comp);
+
+        shape.bytes_per_channel = 1;
+        shape.channels = 3;
+        shape.width = static_cast<size_t>(width);
+        shape.height = static_cast<size_t>(height);
+        shape.frames = static_cast<size_t>(frames);
 
         return result != nullptr;
     }
@@ -218,12 +204,12 @@ bool tenpack_guess_shape( //
 
         bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
 
-        dims.bytes_per_channel = ctx_ptr->wav()->bitsPerSample == 12 ? 2 : ctx_ptr->wav()->bitsPerSample / 8;
-        dims.channels = ctx_ptr->wav()->channels;
-        dims.frames = ctx_ptr->wav()->totalPCMFrameCount;
-        dims.height = ctx_ptr->wav()->sampleRate;
-        dims.width = dims.frames * dims.channels;
-        dims.is_signed = !ctx_ptr->wav()->aiff.isUnsigned;
+        shape.bytes_per_channel = ctx_ptr->wav()->bitsPerSample == 12 ? 2 : ctx_ptr->wav()->bitsPerSample / 8;
+        shape.channels = ctx_ptr->wav()->channels;
+        shape.frames = ctx_ptr->wav()->totalPCMFrameCount;
+        shape.height = ctx_ptr->wav()->sampleRate;
+        shape.width = shape.frames * shape.channels;
+        shape.is_signed = !ctx_ptr->wav()->aiff.isUnsigned;
         return success;
     }
 
@@ -235,11 +221,11 @@ bool tenpack_unpack( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_shape_t const* output_dimensions,
+    tenpack_shape_t const* output_shape,
     void* output,
     tenpack_ctx_t* context) {
 
-    tenpack_shape_t const& dims = *output_dimensions;
+    tenpack_shape_t const& shape = *output_shape;
     ctx_t* ctx_ptr = *reinterpret_cast<ctx_t**>(context);
     if (!ctx_ptr)
         ctx_ptr = new ctx_t();
@@ -256,11 +242,11 @@ bool tenpack_unpack( //
         // Flags:
         // https://rawcdn.githack.com/libjpeg-turbo/libjpeg-turbo/main/doc/html/group___turbo_j_p_e_g.html#gacb233cfd722d66d1ccbf48a7de81f0e0
         TJPF pixel_format;
-        if (dims.bytes_per_channel == 1 && dims.channels == 3)
+        if (shape.bytes_per_channel == 1 && shape.channels == 3)
             pixel_format = TJPF_RGB;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
+        else if (shape.bytes_per_channel == 1 && shape.channels == 1)
             pixel_format = TJPF_GRAY;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 4)
+        else if (shape.bytes_per_channel == 1 && shape.channels == 4)
             pixel_format = TJPF_RGBA;
         else
             return false;
@@ -270,9 +256,9 @@ bool tenpack_unpack( //
                            reinterpret_cast<uint8_t const*>(data),
                            static_cast<unsigned long>(len),
                            reinterpret_cast<uint8_t*>(output),
-                           output_dimensions->width,  // width
-                           0,                         // pitch
-                           output_dimensions->height, // height
+                           output_shape->width,  // width
+                           0,                    // pitch
+                           output_shape->height, // height
                            pixel_format,
                            0) == 0;
         return success;
@@ -284,47 +270,42 @@ bool tenpack_unpack( //
         // Flags: https://libspng.org/docs/decode/#spng_decode_flags
         // TODO: What "This function can only be called once per context" means?!
 
-        spng_ihdr ihdr;
+        spng_ihdr image_header;
         auto spng_context = ctx_ptr->png();
         spng_set_png_buffer(spng_context, data, len);
-        spng_get_ihdr(spng_context, &ihdr);
+        spng_get_ihdr(spng_context, &image_header);
         spng_format fmt;
 
-        if (dims.bytes_per_channel == 1 && dims.channels == 4)
+        if (shape.bytes_per_channel == 1 && shape.channels == 4)
             fmt = SPNG_FMT_RGBA8;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 3)
+        else if (shape.bytes_per_channel == 1 && shape.channels == 3)
             fmt = SPNG_FMT_RGB8;
-        else if (dims.bytes_per_channel == 2 && dims.channels == 2)
+        else if (shape.bytes_per_channel == 2 && shape.channels == 2)
             fmt = SPNG_FMT_GA16;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 2)
+        else if (shape.bytes_per_channel == 1 && shape.channels == 2)
             fmt = SPNG_FMT_GA8;
-        else if (dims.bytes_per_channel == 1 && dims.channels == 1)
+        else if (shape.bytes_per_channel == 1 && shape.channels == 1)
             fmt = SPNG_FMT_G8;
-        else if (dims.bytes_per_channel == 2 && dims.channels == 4)
+        else if (shape.bytes_per_channel == 2 && shape.channels == 4)
             fmt = SPNG_FMT_RGBA16;
         else
             return false;
 
-        bool success = spng_decode_image(spng_context, output, size_bytes(dims, format), fmt, 0) == 0;
+        bool success = spng_decode_image(spng_context, output, size_bytes(shape, format), fmt, 0) == 0;
         return success;
     }
 
     case tenpack_format_t::tenpack_gif_k: {
 
         int* delays = nullptr;
-        int comp, req_comp = 3;
-        stbi_uc* buffer = stbi_load_gif_from_memory((stbi_uc*)data,
-                                                    len,
-                                                    &delays,
-                                                    (int*)&dims.width,
-                                                    (int*)&dims.height,
-                                                    (int*)&dims.frames,
-                                                    &comp,
-                                                    req_comp);
+        int compression = 0, req_comp = 3;
+        int width = 0, height = 0, frames = 0;
+        stbi_uc* buffer =
+            stbi_load_gif_from_memory((stbi_uc*)data, len, &delays, &width, &height, &frames, &compression, req_comp);
 
         if (!buffer)
             return false;
-        std::memcpy(output, buffer, size_bytes(dims, format));
+        std::memcpy(output, buffer, size_bytes(shape, format));
         return true;
     }
 
@@ -333,7 +314,7 @@ bool tenpack_unpack( //
         bool success = drwav_init_memory(ctx_ptr->wav(), data, len, NULL);
         if (!success)
             return false;
-        return drwav_read_pcm_frames(ctx_ptr->wav(), dims.frames, output) == dims.frames;
+        return drwav_read_pcm_frames(ctx_ptr->wav(), shape.frames, output) == shape.frames;
     }
 
     default: return false;
