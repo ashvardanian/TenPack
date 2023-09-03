@@ -105,7 +105,11 @@
     },
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cSpell.words": [
+        "drwav",
+        "ihdr",
+        "stbi",
         "tenpack",
+        "TJPF",
         "Vardanian"
     ]
 }
