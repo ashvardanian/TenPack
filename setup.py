@@ -1,14 +1,10 @@
-import sys
+import os
 import re
-
-from os.path import dirname
+import sys
+import shutil
+import subprocess
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-import subprocess
-
-import os
-
-from setuptools import setup
 
 __version__ = open("VERSION", "r", encoding="utf-8").read()
 __libname__ = "TenPack"
@@ -27,7 +23,7 @@ class CMakeExtension(Extension):
 
 class CMakeBuild(build_ext):
     def build_extension(self, ext):
-        extension_dir = os.path.abspath(dirname(self.get_ext_fullpath(ext.name)))
+        extension_dir = os.path.abspath(os.path.dirname(self.get_ext_fullpath("tenpack")))
 
         if not extension_dir.endswith(os.path.sep):
             extension_dir += os.path.sep
@@ -53,12 +49,22 @@ class CMakeBuild(build_ext):
             build_args += ["--config", "Release"]
 
         subprocess.check_call(["cmake", ext.source_dir] + cmake_args)
-        print("\nName: ", ext.name, "\n")
-        print("\Source dir: ", ext.source_dir, "\n")
-        subprocess.check_call(["cmake", "--build", ".", "--target", ext.name] + build_args)
+        subprocess.check_call(["cmake", "--build", ".", "--target", "tenpack_python"] + build_args)
 
-    def run(self):
-        build_ext.run(self)
+        # Add these lines to copy the .so file to the expected directory
+        if sys.platform.startswith("darwin"):
+            suffix = "darwin.so"
+        elif sys.platform.startswith("linux"):
+            suffix = "linux-gnu.so"
+        else:
+            raise RuntimeError(f"Unsupported platform: {sys.platform}")
+
+        expected_output = os.path.join(
+            extension_dir,
+            f"tenpack.cpython-{sys.version_info.major}{sys.version_info.minor}-{suffix}",
+        )
+        actual_output = os.path.join(extension_dir, "tenpack_python.so")
+        shutil.copyfile(actual_output, expected_output)
 
 
 setup(
@@ -88,5 +94,4 @@ setup(
     extras_require={"test": "pytest"},
     ext_modules=[CMakeExtension("tenpack")],
     cmdclass={"build_ext": CMakeBuild},
-    python_requires=">=3.6",
 )

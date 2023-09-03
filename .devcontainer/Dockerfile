@@ -15,4 +15,4 @@ RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 USER vscode
 WORKDIR /home/vscode
 
-RUN pip install pytest pybind11 cmake wheel gdb-tools requests tqdm fire numpy opencv-python imageio Wave scikit-image black
+RUN pip install pytest cmake wheel gdb-tools requests tqdm fire numpy opencv-python imageio Wave scikit-image black

@@ -71,15 +71,15 @@ bool tenpack_guess_format( //
     tenpack_ctx_t* context);
 
 /**
- * @brief Guesses the file dimensions of binary data just by reading binary signatures.
+ * @brief Guesses the file shape of binary data just by reading binary signatures.
  *
  * @param[in] data       Pointer to the start of binary media data.
  * @param[in] len        Length of the binary blob.
  * @param[in] format     The format of data in `[data, data+len)`.
- * @param[inout] shape   Output dimensions of image.
- *                       > For JPEG and PNG, 3 dimensions: width, height, channels.
- *                       > For GIF, 3 dimensions: width, height, frames.
- *                       > For AVI, 4 dimensions: width, height, channels, frames.
+ * @param[inout] shape   Output shape of image.
+ *                       > For JPEG and PNG, 3 shape: width, height, channels.
+ *                       > For GIF, 3 shape: width, height, frames.
+ *                       > For AVI, 4 shape: width, height, channels, frames.
  * @param[inout] context A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
@@ -95,12 +95,12 @@ bool tenpack_guess_shape( //
 /**
  * @brief unpacking binary data.
  *
- * @param[in] data       Pointer to the start of binary media data.
- * @param[in] len        Length of the binary blob.
- * @param[in] format     The format of data in `[data, data+len)`.
- * @param[in] output_dimensions     Output tensor property.
- * @param[in] output     Output tensor.
- * @param[inout] context A pointer to where the file handler is stored.
+ * @param[in] data          Pointer to the start of binary media data.
+ * @param[in] len           Length of the binary blob.
+ * @param[in] format        The format of data in `[data, data+len)`.
+ * @param[in] output_shape  Output tensor shape.
+ * @param[in] output        Output tensor.
+ * @param[inout] context    A pointer to where the file handler is stored.
  *
  * @return true          If the type was successfully guessed.
  * @return false         If error occurred.
@@ -109,7 +109,7 @@ bool tenpack_unpack( //
     tenpack_input_t const data,
     size_t const len,
     tenpack_format_t const format,
-    tenpack_shape_t const* output_dimensions,
+    tenpack_shape_t const* output_shape,
     void* output,
     tenpack_ctx_t* context);
 

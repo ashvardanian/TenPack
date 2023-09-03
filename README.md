@@ -31,3 +31,17 @@ Libraries implementing the first step have been implemented for other languages:
 * [Nyquist](https://github.com/ddiakopoulos/libnyquist), for audio formats.
 
 In fact, TenPack is just a CMake-friendly generalization of those libraries with a C interface and focus on memory reusing.
+
+---
+
+Building the C library:
+
+```sh
+cmake -DCMAKE_BUILD_TYPE=Release && make libtenpack -j --silent
+```
+
+Building Python bindings:
+
+```sh
+pip install -e .
+```
