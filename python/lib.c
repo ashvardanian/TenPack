@@ -105,6 +105,75 @@ static PyObject* py_api_shape(PyObject* self, PyObject* args) {
     return py_api_shape_dict(shape);
 }
 
+bool set_dims_and_type_for_image(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
+    dims[0] = shape->height;
+    dims[1] = shape->width;
+    dims[2] = shape->channels;
+    *ndims = 3;
+
+    if (!shape->is_signed) {
+        switch (shape->bytes_per_channel) {
+        case 1: *type_num = NPY_UINT8; break;
+        case 2: *type_num = NPY_UINT16; break;
+        case 4: *type_num = NPY_UINT32; break;
+        case 8: *type_num = NPY_UINT64; break;
+        default: *type_num = -1; return false;
+        }
+    }
+    else {
+        switch (shape->bytes_per_channel) {
+        case 1: *type_num = NPY_INT8; break;
+        case 2: *type_num = NPY_INT16; break;
+        case 4: *type_num = NPY_INT32; break;
+        case 8: *type_num = NPY_INT64; break;
+        default: *type_num = -1; return false;
+        }
+    }
+    return true;
+}
+
+bool set_dims_and_type_for_gif(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
+    dims[0] = shape->frames;
+    dims[1] = shape->height;
+    dims[2] = shape->width;
+    dims[3] = shape->channels;
+    *ndims = 4;
+
+    if (!shape->is_signed) {
+        switch (shape->bytes_per_channel) {
+        case 1: *type_num = NPY_UINT8; break;
+        case 2: *type_num = NPY_UINT16; break;
+        case 4: *type_num = NPY_UINT32; break;
+        case 8: *type_num = NPY_UINT64; break;
+        default: *type_num = -1; return false;
+        }
+    }
+    else {
+        switch (shape->bytes_per_channel) {
+        case 1: *type_num = NPY_INT8; break;
+        case 2: *type_num = NPY_INT16; break;
+        case 4: *type_num = NPY_INT32; break;
+        case 8: *type_num = NPY_INT64; break;
+        default: *type_num = -1; return false;
+        }
+    }
+    return true;
+}
+
+bool set_dims_and_type_for_wav(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
+    dims[0] = shape->width;
+    *ndims = 1;
+
+    switch (shape->bytes_per_channel) {
+    case 1: *type_num = NPY_INT8; break;
+    case 2: *type_num = NPY_INT16; break;
+    case 4: *type_num = NPY_INT32; break;
+    case 8: *type_num = NPY_INT64; break;
+    default: *type_num = -1; return false;
+    }
+    return true;
+}
+
 // Python function to unpack file
 static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
     PyObject* py_bytes;
@@ -140,115 +209,20 @@ static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
 
     // Adjust `type_num`:
     switch (format) {
-    case tenpack_bmp_k:
+    case tenpack_bmp_k: // Intentional fall-through
     case tenpack_jxr_k:
     case tenpack_png_k:
     case tenpack_ico_k:
     case tenpack_jpeg_k:
-    case tenpack_jpeg2000_k: {
-        // Intentional fall-through for image types
-        if (!shape.is_signed) {
-            switch (shape.bytes_per_channel) {
-            case 1:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_UINT8;
-                break;
-            case 2:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_UINT16;
-                break;
-            case 4:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_UINT32;
-                break;
-            case 8:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_UINT64;
-                break;
-            default: PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type"); return NULL;
-            }
-        }
-        else {
-            switch (shape.bytes_per_channel) {
-            case 1:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3, type_num = NPY_INT8;
-                break;
-            case 2:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_INT16;
-                break;
-            case 4:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_INT32;
-                break;
-            case 8:
-                dims[0] = shape.height, dims[1] = shape.width, dims[2] = shape.channels, ndims = 3,
-                type_num = NPY_INT64;
-                break;
-            default: PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type"); return NULL;
-            }
-        }
-        break;
+    case tenpack_jpeg2000_k: set_dims_and_type_for_image(&shape, dims, &ndims, &type_num); break;
+    case tenpack_gif_k: set_dims_and_type_for_gif(&shape, dims, &ndims, &type_num); break;
+    case tenpack_wav_k: set_dims_and_type_for_wav(&shape, dims, &ndims, &type_num); break;
+    default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
     }
-    case tenpack_gif_k: {
-        if (!shape.is_signed) {
-            switch (shape.bytes_per_channel) {
-            case 1:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_UINT8;
-                break;
-            case 2:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_UINT16;
-                break;
-            case 4:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_UINT32;
-                break;
-            case 8:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_UINT64;
-                break;
-            default: PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type"); return NULL;
-            }
-        }
-        else {
-            switch (shape.bytes_per_channel) {
-            case 1:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_INT8;
-                break;
-            case 2:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_INT16;
-                break;
-            case 4:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_INT32;
-                break;
-            case 8:
-                dims[0] = shape.frames, dims[1] = shape.height, dims[2] = shape.width, dims[3] = shape.channels,
-                ndims = 4, type_num = NPY_INT64;
-                break;
-            default: PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type"); return NULL;
-            }
-        }
-        break;
-    }
-    case tenpack_wav_k: {
-        switch (shape.bytes_per_channel) {
-        case 1: dims[0] = shape.width, ndims = 1, type_num = NPY_INT8; break;
-        case 2: dims[0] = shape.width, ndims = 1, type_num = NPY_INT16; break;
-        case 4: dims[0] = shape.width, ndims = 1, type_num = NPY_INT32; break;
-        case 8: dims[0] = shape.width, ndims = 1, type_num = NPY_INT64; break;
-        default: PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type"); return NULL;
-        }
-        break;
-    }
-    default: {
-        PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned");
+
+    if (type_num == -1) {
+        PyErr_SetString(PyExc_RuntimeError, "Unknown scalar type");
         return NULL;
-    }
     }
 
     PyObject* format_str = py_api_format_str(format);
