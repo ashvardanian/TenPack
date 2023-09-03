@@ -3,6 +3,7 @@ import re
 import sys
 import shutil
 import subprocess
+import platform
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
@@ -55,7 +56,7 @@ class CMakeBuild(build_ext):
         if sys.platform.startswith("darwin"):
             suffix = "darwin.so"
         elif sys.platform.startswith("linux"):
-            suffix = "linux-gnu.so"
+            suffix = f"{platform.machine()}-linux-gnu.so"
         else:
             raise RuntimeError(f"Unsupported platform: {sys.platform}")
 

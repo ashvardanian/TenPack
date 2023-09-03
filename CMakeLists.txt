@@ -20,7 +20,7 @@ message("CMAKE_C_COMPILER_VERSION: ${CMAKE_C_COMPILER_VERSION}")
 message("CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
 include(FetchContent)
@@ -40,7 +40,7 @@ set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3 -g")
 
-find_package(Python 3.10.6 COMPONENTS Interpreter Development NumPy REQUIRED)
+find_package(Python COMPONENTS Interpreter Development NumPy REQUIRED)
 include_directories(${Python_NumPy_INCLUDE_DIRS})
 
 add_library(tenpack STATIC src/tenpack.c)

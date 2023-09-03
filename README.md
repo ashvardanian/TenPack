@@ -37,7 +37,8 @@ In fact, TenPack is just a CMake-friendly generalization of those libraries with
 Building the C library:
 
 ```sh
-cmake -DCMAKE_BUILD_TYPE=Release && make libtenpack -j --silent
+cmake -DCMAKE_BUILD_TYPE=Release && make tenpack -j --silent
+cmake -DPython_EXECUTABLE=$(which python) -DCMAKE_BUILD_TYPE=Release && make -j --silent
 ```
 
 Building Python bindings:
