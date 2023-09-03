@@ -54,14 +54,13 @@ bool matches(at (&prefix)[length_ak], at* content, size_t content_len) {
     return matches;
 }
 
-class ctx_t {
+struct ctx_t {
 
     tjhandle jpeg_ = nullptr;
     spng_ctx* png_ = nullptr;
     drwav wav_;
     bool wav_state = false;
 
-  public:
     ~ctx_t() {
         if (jpeg_)
             tjDestroy(jpeg_);
