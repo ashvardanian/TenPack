@@ -15,6 +15,12 @@
 
 static tenpack_ctx_t default_context = NULL;
 
+static void py_api_free_globals(void*) {
+    if (default_context)
+        tenpack_context_free(default_context);
+    default_context = NULL;
+}
+
 static PyObject* py_api_format_str(tenpack_format_t format) {
     switch (format) {
     case tenpack_bmp_k: return PyUnicode_FromString("bmp");
@@ -264,11 +270,7 @@ static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
 
 // Python function to unpack multiple files
 static PyObject* py_api_unpack_paths(PyObject* self, PyObject* args) {
-    PyObject* path_list;
-    int threads;
-    if (!PyArg_ParseTuple(args, "O!i", &PyList_Type, &path_list, &threads))
-        return NULL;
-
+    // This lacks an implementation for now
     Py_RETURN_NONE;
 }
 
@@ -281,8 +283,16 @@ static PyMethodDef TenpackMethods[] = { //
     {NULL, NULL, 0, NULL}};
 
 // Module definition
-static struct PyModuleDef tenpack_module = {
-    PyModuleDef_HEAD_INIT, "tenpack", "A Python module that prints 'hello world' from C code.", -1, TenpackMethods};
+static struct PyModuleDef tenpack_module = { //
+    PyModuleDef_HEAD_INIT,
+    "tenpack",
+    "Packing Media into Tensors faster!",
+    -1,
+    TenpackMethods,
+    NULL,
+    NULL,
+    NULL,
+    py_api_free_globals};
 
 // Initialization function
 PyMODINIT_FUNC PyInit_tenpack(void) {

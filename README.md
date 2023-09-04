@@ -9,6 +9,17 @@ Three simple things this library does to you:
 Where do we use it?
 To connect the Data Storage layer of [UKV](github.com/unum-cloud/ukv) to High-Performance Computing libraries like [TensorFlow](tensorflow.org) and [PyTorch](pytorch.org).
 
+```python
+import tenpack
+
+with open("<image>.jpeg", "rb") as f:
+    png_image = f.read()
+
+print(f"{tenpack.format(png_image) = }")
+print(f"{tenpack.shape(png_image) = }")
+print(f"{tenpack.unpack(png_image).shape = }")
+```
+
 ## How it works?
 
 Most common file-formats have "signatures" or "magic numbers" embedded into them.
