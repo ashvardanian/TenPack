@@ -7,7 +7,7 @@ set(BINARY_DIR "${PREFIX}/ffmpeg-build")
 
 ExternalProject_Add(
   ep-ffmpeg
-  URL https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n3.0.tar.gz
+  URL https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n3.4.13.tar.gz
 
   PREFIX ${PREFIX}
   DOWNLOAD_DIR ${DOWNLOAD_DIR}
