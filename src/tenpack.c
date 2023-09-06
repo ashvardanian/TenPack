@@ -261,9 +261,9 @@ bool tenpack_unpack( //
                           (uint8_t*)data,
                           (unsigned long)len,
                           (uint8_t*)output,
-                          output_shape->width,
+                          shape->width,
                           0,
-                          output_shape->height,
+                          shape->height,
                           pixel_format,
                           0) == 0;
         return success;

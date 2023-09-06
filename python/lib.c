@@ -111,6 +111,23 @@ static PyObject* py_api_shape(PyObject* self, PyObject* args) {
     return py_api_shape_dict(shape);
 }
 
+void resize_shape_image(tenpack_shape_t* shape, npy_intp* dims) {
+    shape->height = dims[0];
+    shape->width = dims[1];
+    shape->channels = dims[2];
+}
+
+void resize_shape_animation(tenpack_shape_t* shape, npy_intp* dims) {
+    shape->frames = dims[0];
+    shape->height = dims[1];
+    shape->width = dims[2];
+    shape->channels = dims[3];
+}
+
+void resize_shape_audio(tenpack_shape_t* shape, npy_intp* dims) {
+    shape->width = dims[0];
+}
+
 bool set_dims_and_type_for_image(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
     dims[0] = shape->height;
     dims[1] = shape->width;
@@ -138,7 +155,7 @@ bool set_dims_and_type_for_image(tenpack_shape_t const* shape, npy_intp* dims, i
     return true;
 }
 
-bool set_dims_and_type_for_gif(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
+bool set_dims_and_type_for_animation(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
     dims[0] = shape->frames;
     dims[1] = shape->height;
     dims[2] = shape->width;
@@ -166,7 +183,7 @@ bool set_dims_and_type_for_gif(tenpack_shape_t const* shape, npy_intp* dims, int
     return true;
 }
 
-bool set_dims_and_type_for_wav(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
+bool set_dims_and_type_for_audio(tenpack_shape_t const* shape, npy_intp* dims, int* ndims, int* type_num) {
     dims[0] = shape->width;
     *ndims = 1;
 
@@ -221,8 +238,8 @@ static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
     case tenpack_ico_k:
     case tenpack_jpeg_k:
     case tenpack_jpeg2000_k: set_dims_and_type_for_image(&shape, dims, &ndims, &type_num); break;
-    case tenpack_gif_k: set_dims_and_type_for_gif(&shape, dims, &ndims, &type_num); break;
-    case tenpack_wav_k: set_dims_and_type_for_wav(&shape, dims, &ndims, &type_num); break;
+    case tenpack_gif_k: set_dims_and_type_for_animation(&shape, dims, &ndims, &type_num); break;
+    case tenpack_wav_k: set_dims_and_type_for_audio(&shape, dims, &ndims, &type_num); break;
     default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
     }
 
@@ -268,6 +285,81 @@ static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
     return tuple;
 }
 
+static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
+    PyObject* py_bytes;
+    PyObject* npy_array;
+    char* data;
+    Py_ssize_t length;
+
+    if (!PyArg_ParseTuple(args, "OO", &py_bytes, &npy_array))
+        return NULL;
+
+    if (!PyBytes_Check(py_bytes)) {
+        PyErr_SetString(PyExc_TypeError, "Expected bytes object");
+        return NULL;
+    }
+
+    if (PyBytes_AsStringAndSize(py_bytes, &data, &length) == -1)
+        return NULL;
+
+    tenpack_format_t format;
+    if (!tenpack_guess_format(data, (size_t)length, &format, &default_context)) {
+        PyErr_SetString(PyExc_RuntimeError, "Couldn't infer the format");
+        return NULL;
+    }
+
+    tenpack_shape_t shape;
+    if (!tenpack_guess_shape(data, (size_t)length, format, &shape, &default_context)) {
+        PyErr_SetString(PyExc_RuntimeError, "Couldn't infer the shape");
+        return NULL;
+    }
+
+    PyArrayObject* numpy_array = (PyArrayObject*)npy_array;
+    npy_intp* dims = PyArray_DIMS(numpy_array);
+    int ndim = PyArray_NDIM(numpy_array);
+
+    switch (format) {
+    // case tenpack_bmp_k:
+    // case tenpack_jxr_k:
+    // case tenpack_png_k:
+    // case tenpack_ico_k:
+    case tenpack_jpeg_k:
+    case tenpack_jpeg2000_k: resize_shape_image(&shape, dims); break;
+    case tenpack_gif_k: resize_shape_animation(&shape, dims); break;
+    case tenpack_wav_k: resize_shape_audio(&shape, dims); break;
+    default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
+    }
+
+    PyObject* format_str = py_api_format_str(format);
+    if (format_str == NULL) {
+        return NULL;
+    }
+
+    PyObject* shape_dict = py_api_shape_dict(shape);
+    if (shape_dict == NULL) {
+        Py_XDECREF(format_str);
+        return NULL;
+    }
+
+    void* buffer = PyArray_DATA((PyArrayObject*)numpy_array);
+    if (!tenpack_unpack(data, (size_t)length, format, &shape, buffer, &default_context)) {
+        Py_XDECREF(format_str);
+        Py_XDECREF(shape_dict);
+        Py_XDECREF(numpy_array);
+        PyErr_SetString(PyExc_RuntimeError, "Couldn't deserialize into tensor");
+        return NULL;
+    }
+
+    // Create the tuple to return
+    PyObject* tuple = PyTuple_Pack(3, format_str, shape_dict, numpy_array);
+
+    // Decrease reference count for temporary objects
+    Py_XDECREF(numpy_array);
+    Py_XDECREF(shape_dict);
+    Py_XDECREF(format_str);
+    return tuple;
+}
+
 // Python function to unpack multiple files
 static PyObject* py_api_unpack_paths(PyObject* self, PyObject* args) {
     // This lacks an implementation for now
@@ -279,6 +371,7 @@ static PyMethodDef TenpackMethods[] = { //
     {"format", py_api_format, METH_VARARGS, "Guess file format"},
     {"shape", py_api_shape, METH_VARARGS, "Guess file shape"},
     {"unpack", py_api_unpack, METH_VARARGS, "Unpack file"},
+    {"unpack_into", py_api_unpack_into, METH_VARARGS, "Unpack the file into a tensor of the desired shape"},
     {"unpack_paths", py_api_unpack_paths, METH_VARARGS, "Unpack multiple files"},
     {NULL, NULL, 0, NULL}};
 
