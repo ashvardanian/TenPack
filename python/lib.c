@@ -330,34 +330,13 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
     default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
     }
 
-    PyObject* format_str = py_api_format_str(format);
-    if (format_str == NULL) {
-        return NULL;
-    }
-
-    PyObject* shape_dict = py_api_shape_dict(shape);
-    if (shape_dict == NULL) {
-        Py_XDECREF(format_str);
-        return NULL;
-    }
-
     void* buffer = PyArray_DATA((PyArrayObject*)numpy_array);
     if (!tenpack_unpack(data, (size_t)length, format, &shape, buffer, &default_context)) {
-        Py_XDECREF(format_str);
-        Py_XDECREF(shape_dict);
-        Py_XDECREF(numpy_array);
         PyErr_SetString(PyExc_RuntimeError, "Couldn't deserialize into tensor");
         return NULL;
     }
 
-    // Create the tuple to return
-    PyObject* tuple = PyTuple_Pack(3, format_str, shape_dict, numpy_array);
-
-    // Decrease reference count for temporary objects
-    Py_XDECREF(numpy_array);
-    Py_XDECREF(shape_dict);
-    Py_XDECREF(format_str);
-    return tuple;
+    Py_RETURN_NONE;
 }
 
 // Python function to unpack multiple files
