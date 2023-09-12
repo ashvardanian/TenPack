@@ -111,20 +111,20 @@ static PyObject* py_api_shape(PyObject* self, PyObject* args) {
     return py_api_shape_dict(shape);
 }
 
-void resize_shape_image(tenpack_shape_t* shape, npy_intp* dims) {
+void resize_shape_image(tenpack_shape_t* shape, Py_ssize_t* dims) {
     shape->height = dims[0];
     shape->width = dims[1];
     shape->channels = dims[2];
 }
 
-void resize_shape_animation(tenpack_shape_t* shape, npy_intp* dims) {
+void resize_shape_animation(tenpack_shape_t* shape, Py_ssize_t* dims) {
     shape->frames = dims[0];
     shape->height = dims[1];
     shape->width = dims[2];
     shape->channels = dims[3];
 }
 
-void resize_shape_audio(tenpack_shape_t* shape, npy_intp* dims) {
+void resize_shape_audio(tenpack_shape_t* shape, Py_ssize_t* dims) {
     shape->width = dims[0];
 }
 
@@ -287,11 +287,11 @@ static PyObject* py_api_unpack(PyObject* self, PyObject* args) {
 
 static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
     PyObject* py_bytes;
-    PyObject* npy_array;
+    PyObject* npy_data;
     char* data;
     Py_ssize_t length;
 
-    if (!PyArg_ParseTuple(args, "OO", &py_bytes, &npy_array))
+    if (!PyArg_ParseTuple(args, "OO", &py_bytes, &npy_data))
         return NULL;
 
     if (!PyBytes_Check(py_bytes)) {
@@ -314,9 +314,11 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    PyArrayObject* numpy_array = (PyArrayObject*)npy_array;
-    npy_intp* dims = PyArray_DIMS(numpy_array);
-    int ndim = PyArray_NDIM(numpy_array);
+    Py_buffer view;
+    if (PyObject_GetBuffer(npy_data, &view, PyBUF_FULL)) {
+        PyErr_SetString(PyExc_RuntimeError, "Couldn't get buffer");
+        return NULL;
+    }
 
     switch (format) {
     // case tenpack_bmp_k:
@@ -324,14 +326,13 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
     // case tenpack_png_k:
     // case tenpack_ico_k:
     case tenpack_jpeg_k:
-    case tenpack_jpeg2000_k: resize_shape_image(&shape, dims); break;
-    case tenpack_gif_k: resize_shape_animation(&shape, dims); break;
-    case tenpack_wav_k: resize_shape_audio(&shape, dims); break;
+    case tenpack_jpeg2000_k: resize_shape_image(&shape, view.shape); break;
+    case tenpack_gif_k: resize_shape_animation(&shape, view.shape); break;
+    case tenpack_wav_k: resize_shape_audio(&shape, view.shape); break;
     default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
     }
 
-    void* buffer = PyArray_DATA((PyArrayObject*)numpy_array);
-    if (!tenpack_unpack(data, (size_t)length, format, &shape, buffer, &default_context)) {
+    if (!tenpack_unpack(data, (size_t)length, format, &shape, view.buf, &default_context)) {
         PyErr_SetString(PyExc_RuntimeError, "Couldn't deserialize into tensor");
         return NULL;
     }
