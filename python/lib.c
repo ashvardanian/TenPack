@@ -317,6 +317,13 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
     Py_buffer view;
     if (PyObject_GetBuffer(npy_data, &view, PyBUF_FULL)) {
         PyErr_SetString(PyExc_RuntimeError, "Couldn't get buffer");
+        PyBuffer_Release(&view);
+        return NULL;
+    }
+
+    if (view.strides[view.ndim - 1] != 1) {
+        PyErr_SetString(PyExc_RuntimeError, "Strides are not supported");
+        PyBuffer_Release(&view);
         return NULL;
     }
 
@@ -329,14 +336,20 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
     case tenpack_jpeg2000_k: resize_shape_image(&shape, view.shape); break;
     case tenpack_gif_k: resize_shape_animation(&shape, view.shape); break;
     case tenpack_wav_k: resize_shape_audio(&shape, view.shape); break;
-    default: PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned"); return NULL;
+    default: {
+        PyErr_SetString(PyExc_RuntimeError, "Unsupported format type, stay tuned");
+        PyBuffer_Release(&view);
+        return NULL;
+    }
     }
 
     if (!tenpack_unpack(data, (size_t)length, format, &shape, view.buf, &default_context)) {
         PyErr_SetString(PyExc_RuntimeError, "Couldn't deserialize into tensor");
+        PyBuffer_Release(&view);
         return NULL;
     }
 
+    PyBuffer_Release(&view);
     Py_RETURN_NONE;
 }
 
