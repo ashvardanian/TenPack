@@ -321,7 +321,7 @@ static PyObject* py_api_unpack_into(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    if (view.strides[view.ndim - 1] != 1) {
+    if (!PyBuffer_IsContiguous(&view, 'C')) {
         PyErr_SetString(PyExc_RuntimeError, "Strides are not supported");
         PyBuffer_Release(&view);
         return NULL;
