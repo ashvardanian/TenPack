@@ -1,39 +1,71 @@
-cmake_minimum_required(VERSION 3.19)
-project(UKV)
+cmake_minimum_required(VERSION 3.11)
+project(TenPack)
+
+option(TENPACK_BUILD_PYTHON "Building Python bidings for all SDKs")
+option(TENPACK_BUILD_TESTS "Building C/C++/python native tests" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
-set(CMAKE_CACHEFILE_DIR "${CMAKE_SOURCE_DIR}/tmp/")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/build/lib")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/build/lib")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
+set(CMAKE_CACHEFILE_DIR "${CMAKE_SOURCE_DIR}/build")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/build/lib" CACHE PATH "Path to static libs")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/build/lib" CACHE PATH "Path to static libs")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/build/bin")
 
+message("CMAKE_C_COMPILER_ID: ${CMAKE_C_COMPILER_ID}")
+message("CMAKE_C_COMPILER_VERSION: ${CMAKE_C_COMPILER_VERSION}")
+message("CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
+
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunknown-attributes")
-
 include(FetchContent)
+include_directories(include/)
+
 set(FETCHCONTENT_QUIET OFF)
 
 include("cmake/libturbojpeg.cmake")
+include("cmake/libdr_libs.cmake")
 include("cmake/libspng.cmake")
-include("cmake/libaudio.cmake")
+include("cmake/libstb.cmake")
 find_package(ZLIB REQUIRED)
-find_package(GTest REQUIRED)
-find_package(OpenCV REQUIRED)
 
-add_library(tenpack tenpack.cpp)
-target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB libaudio OpenCV::core)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 
-add_executable(tenpack_test test.cpp tenpack.cpp)
-target_link_libraries(tenpack_test libturbojpeg libspng_static ZLIB::ZLIB libaudio OpenCV::core GTest::gtest)
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3 -g")
 
-add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libaudio)
-add_dependencies(tenpack_test ep-libspng ep-libturbojpeg ep-libaudio)
+find_package(Python COMPONENTS Interpreter Development NumPy REQUIRED)
+include_directories(${Python_NumPy_INCLUDE_DIRS})
+
+add_library(tenpack STATIC src/tenpack.c)
+
+target_link_libraries(tenpack libturbojpeg libspng_static ZLIB::ZLIB dl m pthread)
+get_target_property(TARGET_LIBRARIES tenpack LINK_LIBRARIES)
+add_dependencies(tenpack ep-libspng ep-libturbojpeg ep-libstb  ep-libdr_libs)
+
+if(${TENPACK_BUILD_TESTS})
+    add_executable(tenpack_test tests/test.cpp)
+    target_link_libraries(tenpack_test tenpack)
+    add_dependencies(tenpack_test tenpack)
+endif()
+
+if(${TENPACK_BUILD_PYTHON})
+    find_package(PythonLibs REQUIRED)
+    add_library(tenpack_python MODULE python/lib.c)
+
+    target_link_libraries(tenpack_python PRIVATE tenpack ${TARGET_LIBRARIES} ${PYTHON_LIBRARIES})
+    target_include_directories(tenpack_python PUBLIC python/ ${PYTHON_INCLUDE_DIRS})
+    set_target_properties(tenpack_python PROPERTIES PREFIX "")
+    if(WIN32)
+        set_target_properties(tenpack_python PROPERTIES SUFFIX ".pyd")
+    else()
+        set_target_properties(tenpack_python PROPERTIES SUFFIX ".so")
+    endif()
+endif()
+
